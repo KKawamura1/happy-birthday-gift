@@ -34,9 +34,27 @@ const PERSONAS = {
 const failures = [];
 const fail = (message) => failures.push(message);
 
+/* 自動送信のテスト用。config.js を差し替え、届いた分を受け取る */
+const collected = [];
+let configOverride = null;
+
 function serve() {
   const server = http.createServer(async (req, res) => {
     const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
+
+    if (req.method === 'POST' && rel === 'collect') {
+      let body = '';
+      for await (const chunk of req) body += chunk;
+      try { collected.push(JSON.parse(body)); } catch { collected.push({ broken: body }); }
+      res.writeHead(200).end('ok');
+      return;
+    }
+    if (rel === 'assets/config.js' && configOverride) {
+      res.writeHead(200, { 'content-type': 'text/javascript' });
+      res.end(configOverride);
+      return;
+    }
+
     const file = path.join(ROOT, rel);
     if (!file.startsWith(ROOT)) { res.writeHead(403).end(); return; }
     try {
@@ -50,6 +68,16 @@ function serve() {
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port }));
   });
+}
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(check, timeout = 5000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if (await check()) return true;
+    await wait(100);
+  }
+  return false;
 }
 
 let fallbacks = 0;
@@ -71,7 +99,13 @@ for (const [name, prefs] of Object.entries(PERSONAS)) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   page.on('pageerror', (e) => fail(`[${name}] JSエラー: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error') fail(`[${name}] console: ${m.text()}`); });
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    /* 外部フォントなど、自分のドメイン外の読み込み失敗は環境依存なので見逃す */
+    const from = (m.location() && m.location().url) || '';
+    if (m.text().includes('Failed to load resource') && !from.includes('127.0.0.1')) return;
+    fail(`[${name}] console: ${m.text()}`);
+  });
 
   await page.goto(base);
   await page.click('#start-button');
@@ -119,6 +153,80 @@ for (const [name, prefs] of Object.entries(PERSONAS)) {
   if (answerCount !== asked) fail(`[${name}] 回答件数がずれている: ${answerCount} ≠ ${asked}`);
   if (message !== 'ありがとう。これがいいな。') fail(`[${name}] ひとことが届いていない`);
 
+  await context.close();
+}
+
+/* 押すたびに自動で送られるか */
+{
+  configOverride =
+    `const REPORT_ENDPOINT = '${base}collect';\nconst REPORT_MODE = 'fetch';\n`;
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  page.on('pageerror', (e) => fail(`[自動送信] JSエラー: ${e.message}`));
+
+  await page.goto(base);
+  await page.click('#start-button');
+
+  /* 3問だけ答えて、押すたびに届いているか */
+  for (let i = 0; i < 3; i++) {
+    await page.locator('#choices .choice').first().click();
+    if (!(await until(() => collected.some((c) => c.answeredCount === i + 1)))) {
+      fail(`[自動送信] ${i + 1}問目の答えが届かない`);
+    }
+  }
+  const partial = collected.filter((c) => c.answeredCount === 3).pop();
+  if (!partial) fail('[自動送信] 途中経過が届いていない');
+  else {
+    if (partial.finished) fail('[自動送信] まだ終わっていないのに finished になっている');
+    if (partial.answers.length !== 3) fail('[自動送信] 回答の中身が合わない');
+    if (!partial.answers[0].question || !partial.answers[0].answer) fail('[自動送信] 質問文か答えが空');
+    if (!partial.ranking.length) fail('[自動送信] 途中の順位が入っていない');
+    console.log(`\n=== 自動送信 ===\n  3問目の時点で届いた内容: ${partial.answeredCount}問 / 暫定1位「${partial.ranking[0].name}」`);
+  }
+
+  /* 最後まで答えて、選んで、ひとことを書く */
+  while (await page.locator('[data-screen="quiz"]').isVisible()) {
+    await page.locator('#choices .choice').first().click();
+  }
+  const chosen = await page.locator('#result-list .gift-name').first().textContent();
+  await page.locator('#result-list .gift-card').first().click();
+
+  if (!(await until(() => collected.some((c) => c.finished && c.picked)))) {
+    fail('[自動送信] 選んだ結果が届かない');
+  } else {
+    const done = collected.filter((c) => c.finished).pop();
+    if (done.picked.name !== chosen) fail(`[自動送信] 選んだ品がずれている: ${done.picked.name} ≠ ${chosen}`);
+    console.log(`  えらんだあとに届いた内容: 「${done.picked.name}」 / キーワード ${done.keywords.slice(0, 3).join('、')}`);
+  }
+
+  /* 手で送るボタンは出ていないはず */
+  if (await page.locator('#manual-send').isVisible()) fail('[自動送信] 自動で送れているのに手動ボタンが出ている');
+  if (!(await page.locator('#auto-done').isVisible())) fail('[自動送信] 「届きました」の案内が出ていない');
+
+  await page.fill('#message-input', 'ありがとう。紺色がいいな。');
+  if (!(await until(() => collected.some((c) => c.message === 'ありがとう。紺色がいいな。'), 6000))) {
+    fail('[自動送信] ひとことが届かない');
+  } else {
+    console.log('  ひとことも自動で届きました');
+  }
+
+  await context.close();
+  configOverride = null;
+}
+
+/* 送信先が未設定なら、手で送るボタンに戻るか */
+{
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  page.on('pageerror', (e) => fail(`[手動送信] JSエラー: ${e.message}`));
+  await page.goto(base);
+  await page.click('#start-button');
+  while (await page.locator('[data-screen="quiz"]').isVisible()) {
+    await page.locator('#choices .choice').first().click();
+  }
+  await page.locator('#result-list .gift-card').first().click();
+  if (!(await page.locator('#manual-send').isVisible())) fail('[手動送信] 手で送るボタンが出ていない');
+  if (await page.locator('#auto-done').isVisible()) fail('[手動送信] 届いた案内が出てしまっている');
   await context.close();
 }
 

@@ -14,12 +14,19 @@ const DECIDED_MARGIN = 2.2;    // 1位と2位がこれだけ離れたら打ち�
 const STORAGE_KEY = 'gift-quiz-progress-v1';
 
 const state = {
+  sessionId: '',      // 今回の回答を見分けるための番号
+  startedAt: '',      // 始めた時刻
   answers: [],        // [{ qid, ci }]
   finalPick: null,    // 選ばれたプレゼントの id
   shownTop: [],       // 結果画面に出した候補の id
   offset: 0,          // 「ほかの候補も見る」で何件ずらしたか
   message: ''
 };
+
+function newSessionId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
 
 /* ---------- 小さな道具 ---------- */
 
@@ -107,25 +114,93 @@ function nextQuestion() {
 
 function save() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.answers));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      sessionId: state.sessionId,
+      startedAt: state.startedAt,
+      answers: state.answers
+    }));
   } catch (e) { /* プライベートブラウズなどでは黙って諦める */ }
 }
 
 function loadSaved() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const answers = JSON.parse(raw);
-    return Array.isArray(answers)
-      ? answers.filter((a) => questionById(a.qid) && questionById(a.qid).choices[a.ci])
-      : [];
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (!saved || !Array.isArray(saved.answers)) return null;
+    saved.answers = saved.answers.filter(
+      (a) => questionById(a.qid) && questionById(a.qid).choices[a.ci]
+    );
+    return saved;
   } catch (e) {
-    return [];
+    return null;
   }
 }
 
 function clearSaved() {
   try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* noop */ }
+}
+
+/* ---------- 自動送信 ---------- */
+
+/*
+ * いま分かっていることを、まるごと1通にまとめる。
+ * 押すたびにこれを送るので、途中でやめられても最後の状態が残る。
+ */
+function snapshot() {
+  const scores = tagScores();
+  const ranking = rankedGifts(scores);
+  const picked = state.finalPick ? giftById(state.finalPick) : null;
+
+  return {
+    sessionId: state.sessionId,
+    startedAt: state.startedAt,
+    updatedAt: new Date().toISOString(),
+    answeredCount: state.answers.length,
+    finished: Boolean(picked),
+    answers: state.answers.map((ans) => {
+      const question = questionById(ans.qid);
+      return { question: question.text, answer: question.choices[ans.ci].label };
+    }),
+    keywords: Object.entries(scores)
+      .filter(([tag, value]) => value > 0 && TAG_LABELS[tag])
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([tag]) => TAG_LABELS[tag]),
+    ranking: ranking.slice(0, 5).map((item, index) => ({
+      rank: index + 1,
+      name: item.gift.name,
+      budget: item.gift.budget
+    })),
+    shown: state.shownTop.map((id) => giftById(id).name),
+    picked: picked ? { name: picked.name, budget: picked.budget, note: picked.note } : null,
+    message: state.message.trim()
+  };
+}
+
+function report() {
+  Transport.send(snapshot());
+}
+
+/* ひとことは一文字ごとに送らず、手が止まってからまとめて送る */
+let messageTimer = null;
+function reportMessageSoon() {
+  clearTimeout(messageTimer);
+  messageTimer = setTimeout(report, 1200);
+}
+
+function renderStatus(status) {
+  const text = {
+    connecting: '送信の準備をしています…',
+    sending: '送っています…',
+    sent: '✓ ここまでの答えは息子に届いています',
+    offline: '電波が届いたら、まとめて送ります',
+    none: ''
+  }[status] || '';
+  document.querySelectorAll('.send-status').forEach((el) => {
+    el.textContent = text;
+    el.hidden = !text;
+  });
+  $('#manual-send').hidden = !(Transport.isReady() && !Transport.isAuto());
+  $('#auto-done').hidden = !(Transport.isReady() && Transport.isAuto());
 }
 
 /* ---------- 質問画面 ---------- */
@@ -155,6 +230,7 @@ function renderQuestion() {
     button.addEventListener('click', () => {
       state.answers.push({ qid: question.id, ci: index });
       save();
+      report();
       renderQuestion();
     });
     list.appendChild(button);
@@ -167,6 +243,7 @@ function renderQuestion() {
 function goBack() {
   state.answers.pop();
   save();
+  report();
   renderQuestion();
 }
 
@@ -212,12 +289,14 @@ function renderResult() {
       reasons.length ? `→ ${reasons.join('・')} だから` : '';
     card.addEventListener('click', () => {
       state.finalPick = item.gift.id;
+      report();
       renderSend();
     });
     list.appendChild(card);
   });
 
   $('#more-button').hidden = state.offset + 3 >= ranking.length;
+  report();
   showScreen('result');
 }
 
@@ -269,17 +348,22 @@ function buildResultText() {
   return lines.join('\n');
 }
 
+function refreshShareLinks() {
+  const text = buildResultText();
+  $('#share-line').href = 'https://line.me/R/share?text=' + encodeURIComponent(text);
+  $('#share-mail').href =
+    'mailto:?subject=' + encodeURIComponent('ほしいものクイズの結果') +
+    '&body=' + encodeURIComponent(text);
+}
+
 function renderSend() {
   const gift = giftById(state.finalPick);
   $('#picked-emoji').textContent = gift.emoji;
   $('#picked-name').textContent = gift.name;
   $('#picked-budget').textContent = `目安：${gift.budget}`;
   $('#copy-status').textContent = '';
-  $('#share-line').href =
-    'https://line.me/R/share?text=' + encodeURIComponent(buildResultText());
-  $('#share-mail').href =
-    'mailto:?subject=' + encodeURIComponent('ほしいものクイズの結果') +
-    '&body=' + encodeURIComponent(buildResultText());
+  refreshShareLinks();
+  renderStatus(Transport.status());
   showScreen('send');
 }
 
@@ -357,7 +441,10 @@ function renderReceived(payload) {
 function start(fresh) {
   if (fresh) {
     state.answers = [];
+    state.sessionId = newSessionId();
+    state.startedAt = new Date().toISOString();
     clearSaved();
+    save();
   }
   state.finalPick = null;
   state.offset = 0;
@@ -376,11 +463,8 @@ function init() {
   $('#copy-button').addEventListener('click', copyResult);
   $('#message-input').addEventListener('input', (event) => {
     state.message = event.target.value;
-    $('#share-line').href =
-      'https://line.me/R/share?text=' + encodeURIComponent(buildResultText());
-    $('#share-mail').href =
-      'mailto:?subject=' + encodeURIComponent('ほしいものクイズの結果') +
-      '&body=' + encodeURIComponent(buildResultText());
+    refreshShareLinks();
+    reportMessageSoon();
   });
 
   const match = location.hash.match(/^#r=(.+)$/);
@@ -394,8 +478,14 @@ function init() {
   }
 
   const saved = loadSaved();
-  state.answers = saved;
-  $('#resume-button').hidden = saved.length === 0;
+  state.sessionId = (saved && saved.sessionId) || newSessionId();
+  state.startedAt = (saved && saved.startedAt) || new Date().toISOString();
+  state.answers = saved ? saved.answers : [];
+  $('#resume-button').hidden = state.answers.length === 0;
+
+  Transport.onStatus(renderStatus);
+  Transport.init();
+
   showScreen('intro');
 }
 

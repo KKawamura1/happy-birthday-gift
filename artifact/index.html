@@ -1,0 +1,1477 @@
+<title>ほしいものクイズ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;700&family=Zen+Maru+Gothic:wght@400;700&display=swap">
+<style>
+/*
+ * 還暦（60歳）の赤を軸にした配色。
+ * 赤いちゃんちゃんこの朱、水引の金、和紙の地色。
+ * 大前提として、60歳の母がスマホで迷わず押せること（大きな文字・大きな的・高い明度差）。
+ */
+
+:root {
+  color-scheme: light;
+
+  --paper:        #fbf7f3;   /* 和紙の地 */
+  --surface:      #ffffff;
+  --surface-sunk: #f4ece6;
+  --ink:          #2a2320;   /* 墨 */
+  --ink-soft:     #7a6a62;
+  --line:         #e9dfd8;
+  --kanreki:      #c1272d;   /* 還暦の赤 */
+  --kanreki-deep: #96161c;
+  --kanreki-wash: #fbeceb;
+  --gold:         #a98436;   /* 水引の金 */
+  --focus:        #1c6fb8;
+
+  --radius: 16px;
+  --tap: 64px;               /* 押すところの最小の高さ */
+
+  --font-display: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --font-body: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans",
+               "Yu Gothic", "Meiryo", system-ui, sans-serif;
+}
+
+/* OSがダークで、明示的にライトを選んでいないとき */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper:        #1c1817;
+    --surface:      #262120;
+    --surface-sunk: #302927;
+    --ink:          #f4ebe5;
+    --ink-soft:     #b7a79e;
+    --line:         #3c3230;
+    --kanreki:      #e4635f;
+    --kanreki-deep: #c24a47;
+    --kanreki-wash: #3a2725;
+    --gold:         #c9a85f;
+    --focus:        #79bdf5;
+  }
+}
+
+/* 明示的にダークを選んでいるとき */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper:        #1c1817;
+  --surface:      #262120;
+  --surface-sunk: #302927;
+  --ink:          #f4ebe5;
+  --ink-soft:     #b7a79e;
+  --line:         #3c3230;
+  --kanreki:      #e4635f;
+  --kanreki-deep: #c24a47;
+  --kanreki-wash: #3a2725;
+  --gold:         #c9a85f;
+  --focus:        #79bdf5;
+}
+
+* { box-sizing: border-box; }
+
+html { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.85;
+  -webkit-text-size-adjust: 100%;
+}
+
+[hidden] { display: none !important; }
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.wrap {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding-block: 28px 56px;
+  padding-inline: 20px;
+}
+
+.screen { display: flex; flex-direction: column; gap: 20px; }
+
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+
+h1 {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+h2 { font-size: 1.35rem; line-height: 1.6; }
+
+h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+/* ---------- はじめの画面 ---------- */
+
+.hero { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+
+.mizuhiki { width: 108px; height: 72px; }
+.mizuhiki .mz-red  { stroke: var(--kanreki); }
+.mizuhiki .mz-gold { stroke: var(--gold); }
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.4em;
+  text-indent: 0.4em;
+  color: var(--kanreki);
+}
+
+.lead { margin: 0; color: var(--ink-soft); font-size: 1rem; text-wrap: pretty; }
+.fine { margin: 0; color: var(--ink-soft); font-size: 0.85rem; }
+
+/* ---------- ボタン ---------- */
+
+.primary, .secondary, .ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 14px 20px;
+  border: none;
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--kanreki);
+  color: #fff;
+  box-shadow: 0 3px 0 var(--kanreki-deep);
+}
+.primary:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--kanreki-deep); }
+
+.primary--line { background: #06c755; box-shadow: 0 3px 0 #04a446; }
+.primary--line:active { box-shadow: 0 1px 0 #04a446; }
+
+.secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--line);
+}
+
+.ghost {
+  min-height: 48px;
+  background: none;
+  color: var(--ink-soft);
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* ---------- 質問画面 ---------- */
+
+.progress { display: flex; flex-direction: column; gap: 8px; }
+
+.progress-track {
+  height: 8px;
+  background: var(--surface-sunk);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  width: 6%;
+  background: var(--kanreki);
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+.progress-text {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.question { font-size: 1.4rem; line-height: 1.65; }
+.question-sub { margin: -8px 0 0; color: var(--ink-soft); font-size: 0.9rem; }
+
+.choices { display: flex; flex-direction: column; gap: 12px; }
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 84px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+.choice:hover { border-color: var(--kanreki); }
+.choice:active { transform: scale(0.985); }
+
+.choice-emoji {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  background: var(--kanreki-wash);
+  border-radius: 50%;
+  font-size: 1.7rem;
+  line-height: 1;
+}
+.choice-label { font-size: 1.1rem; font-weight: 700; line-height: 1.55; }
+
+/* ---------- 結果画面 ---------- */
+
+.result-title { font-family: var(--font-display); font-weight: 700; text-align: center; }
+.result-lead { margin: -8px 0 0; text-align: center; color: var(--ink-soft); font-size: 0.95rem; text-wrap: balance; }
+
+.result-list { display: flex; flex-direction: column; gap: 14px; }
+
+/* 1位だけを持ち上げる。2位3位は枠を弱くして、同じ重みに見せない */
+.gift-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  width: 100%;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.gift-card--first {
+  background: var(--kanreki-wash);
+  border: none;
+  border-top: 4px solid var(--kanreki);
+  box-shadow: 0 2px 14px rgb(0 0 0 / 0.06);
+}
+
+.gift-rank {
+  grid-column: 1 / -1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+}
+.gift-card--first .gift-rank { color: var(--kanreki); }
+
+.gift-emoji { font-size: 2.2rem; line-height: 1.3; }
+.gift-body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.gift-name { font-size: 1.1rem; font-weight: 700; line-height: 1.5; }
+.gift-note { margin: 0; font-size: 0.9rem; color: var(--ink-soft); line-height: 1.75; }
+.gift-budget { margin: 0; font-size: 0.85rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gift-reason { margin: 0; font-size: 0.82rem; color: var(--ink-soft); }
+.gift-pick {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  text-align: right;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--kanreki);
+}
+.gift-card--first .gift-pick { border-top-color: rgb(193 39 45 / 0.25); }
+
+/* ---------- おわりの画面 / 受け取る画面 ---------- */
+
+.picked {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: var(--kanreki-wash);
+  border-top: 4px solid var(--kanreki);
+  border-radius: var(--radius);
+}
+.picked-emoji { font-size: 2.6rem; line-height: 1; }
+.picked-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.picked-name { font-size: 1.15rem; font-weight: 700; line-height: 1.5; }
+.picked-budget { font-size: 0.85rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.picked-note { font-size: 0.9rem; color: var(--ink-soft); }
+
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field-label { font-size: 0.95rem; font-weight: 700; }
+
+textarea {
+  width: 100%;
+  padding: 14px;
+  background: var(--surface);
+  color: inherit;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  font: inherit;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.send-buttons { display: flex; flex-direction: column; gap: 12px; }
+
+.send-status {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.done-note { display: flex; flex-direction: column; gap: 10px; }
+
+.copy-status { margin: 0; min-height: 1.6em; font-size: 0.9rem; color: var(--kanreki-deep); }
+.fallback { font-size: 0.85rem; }
+
+.message-card {
+  padding: 16px 20px;
+  background: var(--surface);
+  border-left: 4px solid var(--gold);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.message-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; color: var(--ink-soft); }
+.message-card p { margin: 4px 0 0; white-space: pre-wrap; }
+
+.plain-list { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+
+.tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag {
+  padding: 5px 14px;
+  background: var(--kanreki-wash);
+  color: var(--kanreki-deep);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.qa-list { list-style: none; margin: 0; padding: 0; }
+.qa-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.qa-q { font-size: 0.82rem; color: var(--ink-soft); line-height: 1.6; }
+.qa-a { font-weight: 700; }
+
+@media (min-width: 540px) {
+  body { font-size: 19px; }
+  h1 { font-size: 2.1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<main class="wrap">
+
+  <!-- ① はじめの画面 -->
+  <section class="screen" data-screen="intro">
+    <div class="hero">
+      <svg class="mizuhiki" viewBox="0 0 120 84" role="img" aria-label="水引の飾り結び">
+        <g fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <path class="mz-red" d="M60 44C36 16 10 30 23 50c12 18 37 8 37-6Z"/>
+          <path class="mz-red" d="M60 44c24-28 50-14 37 6-12 18-37 8-37-6Z"/>
+          <path class="mz-gold" d="M46 56c-3 12-7 18-14 24"/>
+          <path class="mz-gold" d="M74 56c3 12 7 18 14 24"/>
+          <path class="mz-gold" d="M52 50h16"/>
+        </g>
+      </svg>
+      <p class="eyebrow">還暦おめでとう</p>
+      <h1>お母さんが本当に<br>ほしいものを当てます</h1>
+      <p class="lead">
+        「お菓子でいいよ」と言ってくれるけれど、せっかくの60歳なので、
+        ちゃんと選びたいのです。
+      </p>
+      <p class="lead">
+        2つか3つの中から、ピンとくるほうを押していくだけ。10問くらいで終わります。
+        押した答えは、そのつど息子に届きます。
+      </p>
+      <button type="button" id="start-button" class="primary">はじめる</button>
+      <button type="button" id="resume-button" class="secondary" hidden>前回のつづきから</button>
+      <p class="fine">途中でやめても大丈夫です。そこまでの答えが届きます。</p>
+    </div>
+  </section>
+
+  <!-- ② 質問画面 -->
+  <section class="screen" data-screen="quiz" hidden>
+    <div class="progress">
+      <div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
+      <p class="progress-text" id="progress-text"></p>
+    </div>
+    <h2 class="question" id="question-text"></h2>
+    <p class="question-sub" id="question-sub" hidden></p>
+    <div class="choices" id="choices"></div>
+    <p class="send-status" hidden></p>
+    <button type="button" id="back-button" class="ghost">← ひとつ前にもどる</button>
+  </section>
+
+  <!-- ③ 結果画面 -->
+  <section class="screen" data-screen="result" hidden>
+    <h2 class="result-title">たぶん、これが近いです</h2>
+    <p class="result-lead">この中で、いちばんピンとくるものを押してください。</p>
+    <div class="result-list" id="result-list"></div>
+    <button type="button" id="more-button" class="secondary">うーん、ほかの候補も見る</button>
+    <button type="button" id="retry-button" class="ghost">最初からやりなおす</button>
+  </section>
+
+  <!-- ④ おわりの画面 -->
+  <section class="screen" data-screen="send" hidden>
+    <h2 class="result-title">ありがとうございました</h2>
+    <div class="picked">
+      <div class="picked-emoji" id="picked-emoji"></div>
+      <div class="picked-text">
+        <div class="picked-name" id="picked-name"></div>
+        <div class="picked-budget" id="picked-budget"></div>
+      </div>
+    </div>
+
+    <label class="field" for="message-input">
+      <span class="field-label">ひとこと（書かなくても大丈夫です）</span>
+      <textarea id="message-input" rows="3" maxlength="400"
+        placeholder="例：色は紺か茶色がいいな。ありがとう。"></textarea>
+    </label>
+
+    <!-- 自動で送れているとき -->
+    <div class="done-note" id="auto-done" hidden>
+      <p class="send-status" hidden></p>
+      <p class="fine">
+        この画面はもう閉じてしまって大丈夫です。
+        ひとことを書き足したら、それも自動で届きます。
+      </p>
+    </div>
+
+    <!-- 自動送信が使えないときだけ出る、手で送るボタン -->
+    <div class="done-note" id="manual-send" hidden>
+      <div class="send-buttons">
+        <button type="button" id="copy-button" class="primary">文章をコピーする</button>
+        <a id="share-line" class="primary primary--line" href="#" target="_blank" rel="noopener">LINEで送る</a>
+        <a id="share-mail" class="secondary" href="#">メールで送る</a>
+      </div>
+      <p class="copy-status" id="copy-status"></p>
+      <textarea id="fallback-text" class="fallback" rows="6" readonly hidden></textarea>
+    </div>
+
+    <button type="button" id="send-back-button" class="ghost">← 結果にもどる</button>
+  </section>
+
+  <!-- ⑤ 息子が結果を受け取る画面（リンクを開いたとき） -->
+  <section class="screen" data-screen="received" hidden>
+    <h2 class="result-title">お母さんの答えが届きました</h2>
+
+    <div class="picked">
+      <div class="picked-emoji" id="received-emoji"></div>
+      <div class="picked-text">
+        <div class="picked-name" id="received-name"></div>
+        <div class="picked-budget" id="received-budget"></div>
+        <div class="picked-note" id="received-note"></div>
+      </div>
+    </div>
+
+    <div class="message-card" id="received-message" hidden>
+      <div class="message-label">お母さんからのひとこと</div>
+      <p id="received-message-text"></p>
+    </div>
+
+    <div id="received-others-wrap">
+      <h3>次点だった候補</h3>
+      <ul class="plain-list" id="received-others"></ul>
+    </div>
+
+    <div>
+      <h3>好みのキーワード</h3>
+      <div class="tags" id="received-tags"></div>
+    </div>
+
+    <div>
+      <h3>答えの全部</h3>
+      <ul class="qa-list" id="received-answers"></ul>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* assets/config.js */
+/*
+ * config.js — 送信先の設定
+ *
+ * ここに Google Apps Script の URL を貼ると、母が選択肢を押すたびに、
+ * その時点の回答一式が自動で送られます（母が「送信」を押す必要はありません）。
+ *
+ * URL の取り方は README の「自動送信の設定」を見てください。
+ * 空のままでも動きますが、その場合は最後に本人が「LINEで送る」を押す必要があります。
+ */
+const REPORT_ENDPOINT = '';
+
+/* 送信先が Apps Script かどうかの目印。ふつうは触らなくて大丈夫です */
+const REPORT_MODE = 'beacon';   // 'beacon' か 'fetch'
+
+</script>
+<script>
+/* assets/data.js */
+/*
+ * data.js — 質問とプレゼント候補のデータ
+ *
+ * 考え方:
+ *   - プレゼント候補(GIFTS)にはそれぞれ「タグ」がついている
+ *   - 質問の選択肢(CHOICES)は、タグに点数を足したり引いたりする
+ *   - 全部の質問を出すのではなく、いま候補がいちばん割れる質問を選んで出す(app.js)
+ */
+
+/* タグの日本語ラベル。結果画面の「なぜこれ？」に使う */
+const TAG_LABELS = {
+  food: 'おいしいもの',
+  sweets: '甘いもの好き',
+  savory: 'しょっぱいもの派',
+  fruit: '果物好き',
+  tea: 'お茶・コーヒー好き',
+  alcohol: 'お酒好き',
+  drink: '飲みもの',
+  consumable: 'なくなるものがいい',
+  keepsake: 'ずっと残るもの',
+  practical: '毎日つかえるもの',
+  luxury: 'ちょっと贅沢に',
+  appliance: '家電',
+  kitchen: '台所しごと',
+  cleaning: '掃除・洗濯',
+  relax: 'のんびりしたい',
+  sleep: 'よく眠りたい',
+  warm: '冷え対策',
+  health: '体をいたわる',
+  massage: '肩・腰がつらい',
+  beauty: '美容',
+  bath: 'お風呂の時間',
+  towel: 'タオル・寝具',
+  fashion: '身につけるもの',
+  accessory: 'アクセサリー',
+  roomwear: 'おうち時間の服',
+  shoes: 'よく歩く',
+  bag: 'お出かけ',
+  experience: '体験',
+  travel: '旅行',
+  dining: '外でおいしいごはん',
+  culture: '舞台・美術',
+  outing: 'お出かけ好き',
+  hobby: '趣味の時間',
+  garden: '花・園芸',
+  craft: '手芸',
+  book: '読書',
+  photo: '写真',
+  family: '家族',
+  together: '誰かと一緒に',
+  tech_ok: '機械もへっちゃら',
+  gadget: 'デジタルもの',
+  home: 'おうち時間',
+  active: 'アクティブ',
+  budget_low: '気を遣わない価格',
+  budget_mid: 'ほどよい価格',
+  budget_high: '節目の贈りもの'
+};
+
+/* プレゼント候補 */
+const GIFTS = [
+  { id: 'sweets_set', emoji: '🍰', name: 'お取り寄せスイーツの詰め合わせ',
+    budget: '3,000〜8,000円',
+    note: '有名店のケーキやどら焼きを、冷凍便でおうちに。ひとつずつ食べる楽しみが続きます。',
+    tags: ['food','sweets','consumable','budget_low','home'] },
+
+  { id: 'fruit', emoji: '🍑', name: '旬の高級フルーツ',
+    budget: '5,000〜12,000円',
+    note: 'シャインマスカット、桃、いちごなど。季節ごとに届く定期便にもできます。',
+    tags: ['food','fruit','consumable','budget_mid','luxury'] },
+
+  { id: 'gourmet', emoji: '🦀', name: 'ご当地グルメ・海鮮セット',
+    budget: '5,000〜15,000円',
+    note: 'かに、うなぎ、明太子、干物など。ちょっといい晩ごはんが何回か。',
+    tags: ['food','savory','consumable','budget_mid'] },
+
+  { id: 'tea', emoji: '🍵', name: 'お茶・コーヒーの定期便',
+    budget: '月 2,000〜4,000円',
+    note: '毎月ちがう茶葉や豆が届きます。毎日の一杯がちょっと特別に。',
+    tags: ['food','tea','drink','consumable','budget_low','home'] },
+
+  { id: 'sake', emoji: '🍶', name: '日本酒・ワインの飲みくらべセット',
+    budget: '5,000〜12,000円',
+    note: '小瓶が何本か入ったセットなら、飲みきりやすくて選ぶ楽しみも。',
+    tags: ['food','alcohol','consumable','budget_mid'] },
+
+  { id: 'coffee_maker', emoji: '☕', name: '全自動コーヒーメーカー／上質な電気ケトル',
+    budget: '8,000〜30,000円',
+    note: 'ボタンひとつで挽きたての一杯。毎朝ちょっと嬉しくなる家電です。',
+    tags: ['appliance','kitchen','drink','practical','tech_ok','budget_mid','home'] },
+
+  { id: 'cook_pot', emoji: '🍲', name: '自動調理鍋・ホットプレート',
+    budget: '15,000〜50,000円',
+    note: '材料を入れてほっとくだけ。台所に立つ時間がぐっとラクになります。',
+    tags: ['appliance','kitchen','practical','tech_ok','budget_mid'] },
+
+  { id: 'robot_cleaner', emoji: '🤖', name: 'ロボット掃除機',
+    budget: '30,000〜80,000円',
+    note: '留守のあいだに掃除が終わっています。腰をかがめる回数が減ります。',
+    tags: ['appliance','cleaning','practical','tech_ok','budget_high'] },
+
+  { id: 'futon_dryer', emoji: '🛏️', name: '布団乾燥機',
+    budget: '10,000〜25,000円',
+    note: '寝る前に30分でぽかぽかの布団に。梅雨どきも冬もうれしい一台。',
+    tags: ['appliance','cleaning','sleep','warm','practical','budget_mid'] },
+
+  { id: 'hair_dryer', emoji: '💨', name: '高級ドライヤー',
+    budget: '20,000〜50,000円',
+    note: '自分ではなかなか買わない価格帯。乾かすだけで髪がつやっとします。',
+    tags: ['beauty','appliance','luxury','practical','budget_high'] },
+
+  { id: 'massager', emoji: '💆', name: 'マッサージクッション／マッサージガン',
+    budget: '6,000〜30,000円',
+    note: 'テレビを見ながら肩や腰に。押すボタンはひとつだけのものが人気です。',
+    tags: ['appliance','massage','relax','health','home','budget_mid'] },
+
+  { id: 'pajama', emoji: '🧸', name: '上質なパジャマ・ルームウェア',
+    budget: '8,000〜20,000円',
+    note: 'シルクやガーゼの肌ざわり。家にいる時間がいちばん長い服だからこそ。',
+    tags: ['roomwear','fashion','relax','warm','sleep','home','budget_mid'] },
+
+  { id: 'towel', emoji: '🛁', name: '今治タオル・バスローブのセット',
+    budget: '5,000〜15,000円',
+    note: '毎日ふれるものを、ちょっといいものに。何枚あっても困りません。',
+    tags: ['towel','bath','relax','practical','budget_low'] },
+
+  { id: 'bedding', emoji: '😴', name: 'オーダー枕・羽毛布団などの寝具',
+    budget: '20,000〜60,000円',
+    note: '人生の1/3は寝ている時間。合う枕に変えると朝がちがいます。',
+    tags: ['sleep','towel','relax','practical','warm','budget_high'] },
+
+  { id: 'bath_gift', emoji: '🧴', name: '入浴剤・バスグッズの詰め合わせ',
+    budget: '3,000〜8,000円',
+    note: '毎晩ひとつずつ選ぶ楽しみ。香りのちがうものが入ったセットで。',
+    tags: ['bath','relax','warm','consumable','budget_low','home'] },
+
+  { id: 'skincare', emoji: '✨', name: 'スキンケア・化粧品のギフトセット',
+    budget: '8,000〜25,000円',
+    note: 'いつも使っているものより、ワンランク上のものを。',
+    tags: ['beauty','luxury','consumable','budget_mid'] },
+
+  { id: 'jewelry', emoji: '💍', name: '真珠・誕生石のアクセサリー',
+    budget: '20,000〜80,000円',
+    note: '60歳の節目に。法事やお祝いの席でずっと使えるものを選べます。',
+    tags: ['accessory','fashion','keepsake','luxury','budget_high'] },
+
+  { id: 'stole', emoji: '🧣', name: '上質なストール・スカーフ',
+    budget: '8,000〜25,000円',
+    note: 'サイズを気にしなくていいのが利点。一枚あると肌寒い日に便利です。',
+    tags: ['fashion','accessory','warm','keepsake','budget_mid'] },
+
+  { id: 'shoes', emoji: '👟', name: '軽くて歩きやすい靴',
+    budget: '10,000〜25,000円',
+    note: '歩く時間が長い人ほど効きます。足に合うものを選べるギフト券も◎。',
+    tags: ['shoes','fashion','active','practical','health','outing','budget_mid'] },
+
+  { id: 'bag', emoji: '👜', name: '軽い本革のお出かけバッグ',
+    budget: '20,000〜60,000円',
+    note: '軽さがいちばん大事。旅行にもお出かけにも使えるサイズで。',
+    tags: ['bag','fashion','active','outing','keepsake','budget_high'] },
+
+  { id: 'onsen', emoji: '♨️', name: '温泉旅行・宿泊のギフト券',
+    budget: '20,000〜60,000円',
+    note: '日程は好きなときに選べます。お友だちや父と行ってもらっても。',
+    tags: ['experience','travel','outing','luxury','relax','budget_high'] },
+
+  { id: 'restaurant', emoji: '🍽️', name: 'レストランのお食事券',
+    budget: '10,000〜30,000円',
+    note: '自分ではなかなか行かないお店へ。ふたり分にしておくと使いやすいです。',
+    tags: ['experience','dining','outing','food','budget_mid'] },
+
+  { id: 'ticket', emoji: '🎭', name: '舞台・コンサート・美術展のチケット',
+    budget: '8,000〜25,000円',
+    note: '好きな演目を選んでもらえます。当日はごはんもセットにすると楽しい。',
+    tags: ['experience','culture','outing','hobby','budget_mid'] },
+
+  { id: 'catalog', emoji: '🎁', name: '体験ギフトのカタログ',
+    budget: '10,000〜30,000円',
+    note: '陶芸、クルーズ、エステ…。冊子から自分で選べるので失敗がありません。',
+    tags: ['experience','outing','hobby','budget_mid'] },
+
+  { id: 'flower', emoji: '💐', name: '花の定期便・寄せ植えセット',
+    budget: '月 1,500〜4,000円',
+    note: '毎月お花が届きます。「今月のが届いたよ」と連絡する口実にもなります。',
+    tags: ['garden','hobby','consumable','home','budget_low','together'] },
+
+  { id: 'craft', emoji: '🧶', name: '手芸キット／好きな作家の本',
+    budget: '3,000〜10,000円',
+    note: 'おうち時間のおともに。読みたかった本をまとめて贈るのもおすすめ。',
+    tags: ['craft','book','hobby','home','budget_low'] },
+
+  { id: 'photo_frame', emoji: '🖼️', name: 'デジタルフォトフレーム',
+    budget: '15,000〜30,000円',
+    note: '離れていても、こちらから写真を送ると自動で表示されます。設定は息子が。',
+    tags: ['photo','family','together','gadget','tech_ok','keepsake','budget_mid','home'] },
+
+  { id: 'photo_book', emoji: '📖', name: '家族写真のフォトブック＋手紙',
+    budget: '3,000〜8,000円',
+    note: '昔の写真と最近の写真をまとめて一冊に。値段では測れないやつです。',
+    tags: ['photo','family','together','keepsake','budget_low','home'] },
+
+  { id: 'tablet', emoji: '📱', name: 'ビデオ通話用のタブレット',
+    budget: '30,000〜60,000円',
+    note: '大きい画面で顔を見ながら話せます。初期設定を済ませてから送ります。',
+    tags: ['gadget','tech_ok','family','together','practical','budget_high'] },
+
+  { id: 'trip_together', emoji: '🚅', name: '一緒に行く旅行（息子が帰省＋小旅行）',
+    budget: '相談して決める',
+    note: 'いちばんの贈りものは時間かもしれません。日程だけ先に押さえます。',
+    tags: ['together','family','experience','travel','outing','budget_high'] }
+];
+
+/*
+ * 質問。tags の値がプラスなら「そのタグを持つプレゼントの点が上がる」、
+ * マイナスなら下がる。3〜4 で強い影響、1〜2 でゆるい影響。
+ */
+const QUESTIONS = [
+  { id: 'q_style', text: '誕生日は、どんなふうに過ごせたら嬉しいですか？',
+    choices: [
+      { emoji: '🏠', label: 'おうちでゆっくり', tags: { home: 3, relax: 2, outing: -2, experience: -2 } },
+      { emoji: '🚶', label: 'どこかへ出かけたい', tags: { outing: 3, experience: 3, active: 2, home: -1 } },
+      { emoji: '👨‍👩‍👦', label: '家族と話したり会ったり', tags: { family: 3, together: 3, photo: 2 } }
+    ] },
+
+  { id: 'q_form', text: 'プレゼント、どっちが好みですか？',
+    choices: [
+      { emoji: '🎀', label: 'ずっと残るもの', tags: { keepsake: 3, consumable: -3, practical: 1 } },
+      { emoji: '🍽️', label: '食べたり使ったりしてなくなるもの', tags: { consumable: 3, food: 2, keepsake: -3 } },
+      { emoji: '🤔', label: 'どちらでも嬉しい', tags: { practical: 1, experience: 1 } }
+    ] },
+
+  { id: 'q_want', text: '最近「これ欲しいなあ」と思ったのは、どれに近いですか？',
+    choices: [
+      { emoji: '🧹', label: '家のことがラクになるもの', tags: { appliance: 3, practical: 3, cleaning: 2, kitchen: 2 } },
+      { emoji: '🛀', label: '自分を甘やかすもの', tags: { luxury: 3, relax: 3, beauty: 2, bath: 2 } },
+      { emoji: '🎨', label: '楽しみ・趣味のもの', tags: { hobby: 3, culture: 2, craft: 2, garden: 2 } }
+    ] },
+
+  { id: 'q_taste', text: '食べものなら、どれがいちばん嬉しいですか？',
+    choices: [
+      { emoji: '🍡', label: '甘いもの', tags: { sweets: 4, food: 2 } },
+      { emoji: '🍢', label: 'しょっぱいもの・お酒', tags: { savory: 3, alcohol: 3, food: 2, sweets: -2 } },
+      { emoji: '🍇', label: '果物やお茶', tags: { fruit: 3, tea: 3, drink: 2, food: 2 } }
+    ] },
+
+  { id: 'q_tech', text: '新しい家電やデジタルものは、どうですか？',
+    choices: [
+      { emoji: '👍', label: '便利なら使ってみたい', tags: { tech_ok: 3, appliance: 2, gadget: 2 } },
+      { emoji: '😅', label: '説明書を読むのは苦手', tags: { tech_ok: -3, gadget: -3, appliance: -2 } }
+    ] },
+
+  { id: 'q_body', text: 'からだのことで、いちばん気になるのは？',
+    choices: [
+      { emoji: '💆', label: '肩や腰がつらい', tags: { massage: 4, relax: 2, health: 3 } },
+      { emoji: '🧦', label: '冷えが気になる', tags: { warm: 4, bath: 2, roomwear: 2 } },
+      { emoji: '🌙', label: 'ぐっすり眠りたい', tags: { sleep: 4, relax: 2 } },
+      { emoji: '💪', label: 'とくに元気です', tags: { active: 2, outing: 1, health: -1 } }
+    ] },
+
+  { id: 'q_outing', text: 'お出かけするなら、どれがいちばん楽しみ？',
+    choices: [
+      { emoji: '♨️', label: '温泉でのんびり', tags: { travel: 4, experience: 2, relax: 2 } },
+      { emoji: '🍷', label: 'おいしいごはん', tags: { dining: 4, experience: 2, food: 2 } },
+      { emoji: '🎼', label: '舞台・美術館・コンサート', tags: { culture: 4, experience: 2, hobby: 2 } }
+    ] },
+
+  { id: 'q_home', text: 'おうちにいる時間、何をしていることが多いですか？',
+    choices: [
+      { emoji: '📺', label: 'テレビや動画を見る', tags: { home: 2, relax: 2, massage: 1 } },
+      { emoji: '🌱', label: '庭いじり・お花の世話', tags: { garden: 4, hobby: 2 } },
+      { emoji: '🧵', label: '手芸や読書', tags: { craft: 3, book: 3, hobby: 2 } },
+      { emoji: '🍳', label: '料理やお菓子づくり', tags: { kitchen: 4, appliance: 2 } }
+    ] },
+
+  { id: 'q_wear', text: '服やアクセサリーを贈られるのは、どうですか？',
+    choices: [
+      { emoji: '🙅', label: 'サイズも好みもあるので自分で選びたい', tags: { fashion: -3, accessory: -2, shoes: -2, bag: -2 } },
+      { emoji: '💝', label: 'もらえたら嬉しい', tags: { fashion: 3, accessory: 3, keepsake: 2 } },
+      { emoji: '🧸', label: 'パジャマや部屋着ならぜひ', tags: { roomwear: 4, home: 2, fashion: 1 } }
+    ] },
+
+  { id: 'q_budget', text: '息子からのプレゼント、値段はどのくらいが落ち着きますか？',
+    choices: [
+      { emoji: '🍪', label: '気を遣うから、お菓子くらいで十分', tags: { budget_low: 4, consumable: 2, budget_high: -3 } },
+      { emoji: '🎂', label: '節目だし、少しいいものでも', tags: { budget_mid: 3, budget_low: -1 } },
+      { emoji: '🎊', label: '60歳だし、長く使えるものを', tags: { budget_high: 4, keepsake: 2, luxury: 2, budget_low: -3 } }
+    ] },
+
+  { id: 'q_honne', text: 'ここだけの話。「値段は気にしなくていい」と言われたら、本当は？',
+    sub: '息子には見えません…と言いたいところですが、最後に送れます。正直にどうぞ。',
+    choices: [
+      { emoji: '🍩', label: 'やっぱり食べものが一番うれしい', tags: { food: 3, consumable: 3, sweets: 1 } },
+      { emoji: '🏆', label: 'ずっと使えるものが欲しい', tags: { keepsake: 3, budget_high: 2, luxury: 2 } },
+      { emoji: '🌅', label: '思い出に残ることがしたい', tags: { experience: 4, together: 2, travel: 2 } }
+    ] },
+
+  { id: 'q_photo', text: '写真や手紙など、思い出のものはどうですか？',
+    choices: [
+      { emoji: '🖼️', label: '飾りたいし、何度も見返したい', tags: { photo: 4, family: 2, keepsake: 2 } },
+      { emoji: '📦', label: 'もらっても置き場所に困るかも', tags: { photo: -3, keepsake: -1 } }
+    ] },
+
+  { id: 'q_with', text: '過ごすなら、ひとり？ 誰かと？',
+    choices: [
+      { emoji: '🧘', label: 'ひとりでのんびりが好き', tags: { home: 2, relax: 2, together: -2 } },
+      { emoji: '🫶', label: '誰かと一緒がうれしい', tags: { together: 3, family: 2, dining: 1 } }
+    ] },
+
+  { id: 'q_replace', text: '毎日使うもので、そろそろ買い替えたいものはありますか？',
+    choices: [
+      { emoji: '🔪', label: '台所まわり', tags: { kitchen: 3, appliance: 3, practical: 2 } },
+      { emoji: '🧺', label: '掃除・洗濯まわり', tags: { cleaning: 4, appliance: 3, practical: 2 } },
+      { emoji: '🛌', label: 'タオルや寝具', tags: { towel: 4, sleep: 3, practical: 2 } },
+      { emoji: '🆗', label: 'とくにない', tags: { practical: -2, luxury: 2, experience: 1 } }
+    ] },
+
+  { id: 'q_scent', text: '香りのあるものは好きですか？',
+    choices: [
+      { emoji: '🌸', label: '好き', tags: { bath: 3, beauty: 2, garden: 1 } },
+      { emoji: '🚫', label: 'あまり得意ではない', tags: { bath: -3, beauty: -2 } }
+    ] },
+
+  { id: 'q_walk', text: '出かけるとき、歩くことは多いですか？',
+    choices: [
+      { emoji: '🚶‍♀️', label: 'よく歩きます', tags: { shoes: 3, bag: 2, active: 3, outing: 2 } },
+      { emoji: '🚗', label: '車が多い／あまり歩かない', tags: { shoes: -2, active: -1, home: 1 } }
+    ] }
+];
+
+</script>
+<script>
+/* assets/transport.js */
+/*
+ * transport.js — 回答を自動で送る部分
+ *
+ * 送り先は、使える順に自動で決まります:
+ *   1. Artifact の db（Claude 上で開いたとき。動作確認用）
+ *   2. config.js の REPORT_ENDPOINT（Google Apps Script。本番はこちら）
+ *   3. どちらも無ければ何もしない（最後に本人がLINEで送る方式に戻る）
+ *
+ * 送信の考え方:
+ *   - 毎回「その時点の回答ぜんぶ」を送る。途中でやめられても残るし、
+ *     順番が入れ替わって届いても最後の1通が正しければよい
+ *   - 押すたびに送るので、送信は1本ずつ順番に。押し急がれても詰まらないよう、
+ *     待っているあいだに来た分は最新のものだけ残してまとめる
+ */
+
+const Transport = (() => {
+  let backend = null;        // 決まった送り先
+  let ready = false;         // 送り先の判定が終わったか
+  let pending = null;        // まだ送れていない最新のデータ
+  let sending = false;       // いま送信中か
+  const listeners = [];      // 状態が変わったときに呼ぶ関数
+  let status = 'connecting'; // connecting / sending / sent / offline / none
+
+  function setStatus(next) {
+    if (status === next) return;
+    status = next;
+    listeners.forEach((fn) => fn(status));
+  }
+
+  /* --- 送り先その1: Artifact の db --- */
+  function dbBackend(db) {
+    return async (snapshot) => {
+      await db.doc(`answers/${snapshot.sessionId}`).set(snapshot);
+    };
+  }
+
+  /* --- 送り先その2: Google Apps Script などの URL --- */
+  function httpBackend(url) {
+    return async (snapshot) => {
+      const body = JSON.stringify(snapshot);
+      /*
+       * Apps Script は CORS のプリフライトを返さないので、
+       * text/plain で投げて「単純リクエスト」にする。
+       * sendBeacon が使えるときは、画面を閉じられても届く可能性が上がる。
+       */
+      if (REPORT_MODE === 'beacon' && navigator.sendBeacon) {
+        const ok = navigator.sendBeacon(url, new Blob([body], { type: 'text/plain;charset=UTF-8' }));
+        if (ok) return;
+      }
+      await fetch(url, {
+        method: 'POST',
+        mode: 'no-cors',
+        keepalive: true,
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body
+      });
+    };
+  }
+
+  async function resolveBackend() {
+    try {
+      if (window.claude && typeof window.claude.use === 'function') {
+        const db = await window.claude.use('db');
+        if (db) return dbBackend(db);
+      }
+    } catch (e) { /* 使えなければ次へ */ }
+    if (typeof REPORT_ENDPOINT === 'string' && REPORT_ENDPOINT.trim()) {
+      return httpBackend(REPORT_ENDPOINT.trim());
+    }
+    return null;
+  }
+
+  async function flush() {
+    if (sending || !ready || !backend || pending === null) return;
+    sending = true;
+    const snapshot = pending;
+    pending = null;
+    setStatus('sending');
+    try {
+      await backend(snapshot);
+      setStatus(pending === null ? 'sent' : 'sending');
+    } catch (e) {
+      // 送れなかったぶんは捨てずに戻して、次の操作のときに再挑戦する
+      if (pending === null) pending = snapshot;
+      setStatus('offline');
+    } finally {
+      sending = false;
+      if (pending !== null) setTimeout(flush, 1200);
+    }
+  }
+
+  return {
+    /* 送り先を決める。ページの表示はこれを待たない */
+    async init() {
+      backend = await resolveBackend();
+      ready = true;
+      setStatus(backend ? (pending === null ? 'sent' : 'sending') : 'none');
+      flush();
+      return Boolean(backend);
+    },
+    /* その時点の回答ぜんぶを送る */
+    send(snapshot) {
+      pending = snapshot;
+      if (!ready) return;              // 判定が終わったら flush から送られる
+      if (!backend) { setStatus('none'); return; }
+      flush();
+    },
+    /* 自動送信が使えるかどうか（使えないときだけLINEボタンを出す） */
+    isAuto() { return ready && Boolean(backend); },
+    isReady() { return ready; },
+    status() { return status; },
+    onStatus(fn) { listeners.push(fn); fn(status); }
+  };
+})();
+
+</script>
+<script>
+/* assets/app.js */
+/*
+ * app.js — 質問を選ぶエンジンと画面の制御
+ *
+ * エンジンのしくみ:
+ *   1. 回答するたびに「タグごとの点数」を足していく
+ *   2. プレゼント候補の点数 = そのプレゼントが持つタグの点数の合計
+ *   3. 次の質問は、いまの上位候補の点差がいちばん開く質問を選ぶ
+ *      （＝答えを聞いて「いちばん情報が増える」質問。アキネーターと同じ考え方）
+ */
+
+const MIN_QUESTIONS = 8;
+const MAX_QUESTIONS = 11;
+const DECIDED_MARGIN = 2.2;    // 1位と2位がこれだけ離れたら打ち切ってよい
+const STORAGE_KEY = 'gift-quiz-progress-v1';
+
+const state = {
+  sessionId: '',      // 今回の回答を見分けるための番号
+  startedAt: '',      // 始めた時刻
+  answers: [],        // [{ qid, ci }]
+  finalPick: null,    // 選ばれたプレゼントの id
+  shownTop: [],       // 結果画面に出した候補の id
+  offset: 0,          // 「ほかの候補も見る」で何件ずらしたか
+  message: ''
+};
+
+function newSessionId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+/* ---------- 小さな道具 ---------- */
+
+const $ = (sel) => document.querySelector(sel);
+const questionById = (id) => QUESTIONS.find((q) => q.id === id);
+const giftById = (id) => GIFTS.find((g) => g.id === id);
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach((el) => {
+    el.hidden = el.dataset.screen !== name;
+  });
+  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+}
+
+/* ---------- 採点 ---------- */
+
+function tagScores(answers = state.answers) {
+  const scores = {};
+  for (const ans of answers) {
+    const choice = questionById(ans.qid).choices[ans.ci];
+    for (const [tag, value] of Object.entries(choice.tags)) {
+      scores[tag] = (scores[tag] || 0) + value;
+    }
+  }
+  return scores;
+}
+
+/*
+ * タグをたくさん持つプレゼントほど点が貯まりやすいので、
+ * タグ数の平方根で割って平等にする。
+ */
+function giftScore(gift, scores) {
+  const sum = gift.tags.reduce((total, tag) => total + (scores[tag] || 0), 0);
+  return sum / Math.sqrt(gift.tags.length);
+}
+
+function rankedGifts(scores = tagScores()) {
+  return GIFTS
+    .map((gift) => ({ gift, score: giftScore(gift, scores) }))
+    .sort((a, b) => b.score - a.score);
+}
+
+/* この質問を聞くと、上位候補の順位がどれだけ動くか */
+function informativeness(question, ranking) {
+  let total = 0;
+  ranking.slice(0, 10).forEach((item, index) => {
+    const weight = 1 / (1 + index * 0.3);   // 上位の候補ほど重視する
+    const deltas = question.choices.map((choice) =>
+      item.gift.tags.reduce((sum, tag) => sum + (choice.tags[tag] || 0), 0) /
+      Math.sqrt(item.gift.tags.length)
+    );
+    total += weight * (Math.max(...deltas) - Math.min(...deltas));
+  });
+  return total;
+}
+
+function nextQuestion() {
+  const asked = new Set(state.answers.map((a) => a.qid));
+  if (asked.size === 0) return questionById('q_style');   // 1問目は固定
+
+  const remaining = QUESTIONS.filter((q) => !asked.has(q.id));
+  if (remaining.length === 0) return null;
+
+  const ranking = rankedGifts();
+  if (asked.size >= MIN_QUESTIONS) {
+    if (asked.size >= MAX_QUESTIONS) return null;
+    const margin = ranking[0].score - ranking[1].score;
+    if (margin >= DECIDED_MARGIN) return null;            // もう答えは出ている
+  }
+
+  let best = null;
+  let bestValue = -Infinity;
+  for (const question of remaining) {
+    // 同じ人が2回遊んでも少しだけ順番が変わるように、ごく小さなゆらぎを足す
+    const value = informativeness(question, ranking) + Math.random() * 0.15;
+    if (value > bestValue) {
+      bestValue = value;
+      best = question;
+    }
+  }
+  return best;
+}
+
+/* ---------- 保存 ---------- */
+
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      sessionId: state.sessionId,
+      startedAt: state.startedAt,
+      answers: state.answers
+    }));
+  } catch (e) { /* プライベートブラウズなどでは黙って諦める */ }
+}
+
+function loadSaved() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (!saved || !Array.isArray(saved.answers)) return null;
+    saved.answers = saved.answers.filter(
+      (a) => questionById(a.qid) && questionById(a.qid).choices[a.ci]
+    );
+    return saved;
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearSaved() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* noop */ }
+}
+
+/* ---------- 自動送信 ---------- */
+
+/*
+ * いま分かっていることを、まるごと1通にまとめる。
+ * 押すたびにこれを送るので、途中でやめられても最後の状態が残る。
+ */
+function snapshot() {
+  const scores = tagScores();
+  const ranking = rankedGifts(scores);
+  const picked = state.finalPick ? giftById(state.finalPick) : null;
+
+  return {
+    sessionId: state.sessionId,
+    startedAt: state.startedAt,
+    updatedAt: new Date().toISOString(),
+    answeredCount: state.answers.length,
+    finished: Boolean(picked),
+    answers: state.answers.map((ans) => {
+      const question = questionById(ans.qid);
+      return { question: question.text, answer: question.choices[ans.ci].label };
+    }),
+    keywords: Object.entries(scores)
+      .filter(([tag, value]) => value > 0 && TAG_LABELS[tag])
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([tag]) => TAG_LABELS[tag]),
+    ranking: ranking.slice(0, 5).map((item, index) => ({
+      rank: index + 1,
+      name: item.gift.name,
+      budget: item.gift.budget
+    })),
+    shown: state.shownTop.map((id) => giftById(id).name),
+    picked: picked ? { name: picked.name, budget: picked.budget, note: picked.note } : null,
+    message: state.message.trim()
+  };
+}
+
+function report() {
+  Transport.send(snapshot());
+}
+
+/* ひとことは一文字ごとに送らず、手が止まってからまとめて送る */
+let messageTimer = null;
+function reportMessageSoon() {
+  clearTimeout(messageTimer);
+  messageTimer = setTimeout(report, 1200);
+}
+
+function renderStatus(status) {
+  const text = {
+    connecting: '送信の準備をしています…',
+    sending: '送っています…',
+    sent: '✓ ここまでの答えは息子に届いています',
+    offline: '電波が届いたら、まとめて送ります',
+    none: ''
+  }[status] || '';
+  document.querySelectorAll('.send-status').forEach((el) => {
+    el.textContent = text;
+    el.hidden = !text;
+  });
+  $('#manual-send').hidden = !(Transport.isReady() && !Transport.isAuto());
+  $('#auto-done').hidden = !(Transport.isReady() && Transport.isAuto());
+}
+
+/* ---------- 質問画面 ---------- */
+
+function renderQuestion() {
+  const question = nextQuestion();
+  if (!question) return renderResult();
+
+  const asked = state.answers.length;
+  const percent = Math.round((asked / MAX_QUESTIONS) * 100);
+
+  $('#progress-bar').style.width = `${Math.max(6, percent)}%`;
+  $('#progress-text').textContent =
+    `${asked + 1}問目（ぜんぶで${MIN_QUESTIONS}〜${MAX_QUESTIONS}問くらい）`;
+  $('#question-text').textContent = question.text;
+  $('#question-sub').textContent = question.sub || '';
+  $('#question-sub').hidden = !question.sub;
+
+  const list = $('#choices');
+  list.innerHTML = '';
+  question.choices.forEach((choice, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'choice';
+    button.innerHTML = `<span class="choice-emoji">${choice.emoji}</span><span class="choice-label"></span>`;
+    button.querySelector('.choice-label').textContent = choice.label;
+    button.addEventListener('click', () => {
+      state.answers.push({ qid: question.id, ci: index });
+      save();
+      report();
+      renderQuestion();
+    });
+    list.appendChild(button);
+  });
+
+  $('#back-button').hidden = state.answers.length === 0;
+  showScreen('quiz');
+}
+
+function goBack() {
+  state.answers.pop();
+  save();
+  report();
+  renderQuestion();
+}
+
+/* ---------- 結果画面 ---------- */
+
+/* そのプレゼントが選ばれた理由になっているタグを、強い順に拾う */
+function reasonsFor(gift, scores) {
+  return gift.tags
+    .filter((tag) => (scores[tag] || 0) > 0 && TAG_LABELS[tag])
+    .sort((a, b) => scores[b] - scores[a])
+    .slice(0, 3)
+    .map((tag) => TAG_LABELS[tag]);
+}
+
+function renderResult() {
+  const scores = tagScores();
+  const ranking = rankedGifts(scores);
+  const top = ranking.slice(state.offset, state.offset + 3);
+  state.shownTop = top.map((item) => item.gift.id);
+
+  const list = $('#result-list');
+  list.innerHTML = '';
+  top.forEach((item, index) => {
+    const rank = state.offset + index + 1;
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'gift-card' + (rank === 1 ? ' gift-card--first' : '');
+    card.innerHTML = `
+      <div class="gift-rank">${rank === 1 ? '★ いちばん近そう' : `${rank}位`}</div>
+      <div class="gift-emoji">${item.gift.emoji}</div>
+      <div class="gift-body">
+        <h3 class="gift-name"></h3>
+        <p class="gift-note"></p>
+        <p class="gift-budget"></p>
+        <p class="gift-reason"></p>
+      </div>
+      <div class="gift-pick">これにする →</div>`;
+    card.querySelector('.gift-name').textContent = item.gift.name;
+    card.querySelector('.gift-note').textContent = item.gift.note;
+    card.querySelector('.gift-budget').textContent = `目安：${item.gift.budget}`;
+    const reasons = reasonsFor(item.gift, scores);
+    card.querySelector('.gift-reason').textContent =
+      reasons.length ? `→ ${reasons.join('・')} だから` : '';
+    card.addEventListener('click', () => {
+      state.finalPick = item.gift.id;
+      report();
+      renderSend();
+    });
+    list.appendChild(card);
+  });
+
+  $('#more-button').hidden = state.offset + 3 >= ranking.length;
+  report();
+  showScreen('result');
+}
+
+function showMore() {
+  state.offset += 3;
+  renderResult();
+}
+
+/* ---------- 送信画面 ---------- */
+
+function encodePayload(object) {
+  const bytes = new TextEncoder().encode(JSON.stringify(object));
+  let binary = '';
+  bytes.forEach((b) => { binary += String.fromCharCode(b); });
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function decodePayload(text) {
+  const normalized = text.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(normalized);
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function buildResultUrl() {
+  const payload = {
+    v: 1,
+    a: state.answers.map((ans) => [ans.qid, ans.ci]),
+    p: state.finalPick,
+    t: state.shownTop,
+    m: state.message.slice(0, 400)
+  };
+  const base = location.origin + location.pathname;
+  return `${base}#r=${encodePayload(payload)}`;
+}
+
+function buildResultText() {
+  const gift = giftById(state.finalPick);
+  const lines = [
+    '🎂 お母さんの「ほしいものクイズ」の結果です',
+    '',
+    `▼ えらんだのは：${gift.emoji} ${gift.name}`,
+    `　 目安：${gift.budget}`
+  ];
+  if (state.message.trim()) {
+    lines.push('', `▼ ひとこと：${state.message.trim()}`);
+  }
+  lines.push('', '▼ くわしい答えはこちら', buildResultUrl());
+  return lines.join('\n');
+}
+
+function refreshShareLinks() {
+  const text = buildResultText();
+  $('#share-line').href = 'https://line.me/R/share?text=' + encodeURIComponent(text);
+  $('#share-mail').href =
+    'mailto:?subject=' + encodeURIComponent('ほしいものクイズの結果') +
+    '&body=' + encodeURIComponent(text);
+}
+
+function renderSend() {
+  const gift = giftById(state.finalPick);
+  $('#picked-emoji').textContent = gift.emoji;
+  $('#picked-name').textContent = gift.name;
+  $('#picked-budget').textContent = `目安：${gift.budget}`;
+  $('#copy-status').textContent = '';
+  refreshShareLinks();
+  renderStatus(Transport.status());
+  showScreen('send');
+}
+
+async function copyResult() {
+  const text = buildResultText();
+  try {
+    await navigator.clipboard.writeText(text);
+    $('#copy-status').textContent = 'コピーしました！ LINEなどに貼りつけて送ってください。';
+  } catch (e) {
+    const area = $('#fallback-text');
+    area.hidden = false;
+    area.value = text;
+    area.select();
+    $('#copy-status').textContent = '下の文章を長押しして、コピーしてください。';
+  }
+}
+
+/* ---------- 息子が結果を見る画面 ---------- */
+
+function renderReceived(payload) {
+  const answers = (payload.a || [])
+    .map(([qid, ci]) => ({ qid, ci }))
+    .filter((a) => questionById(a.qid) && questionById(a.qid).choices[a.ci]);
+
+  const gift = giftById(payload.p);
+  const scores = tagScores(answers);
+
+  $('#received-emoji').textContent = gift ? gift.emoji : '🎁';
+  $('#received-name').textContent = gift ? gift.name : '（選択なし）';
+  $('#received-budget').textContent = gift ? `目安：${gift.budget}` : '';
+  $('#received-note').textContent = gift ? gift.note : '';
+
+  const messageBox = $('#received-message');
+  messageBox.hidden = !payload.m;
+  $('#received-message-text').textContent = payload.m || '';
+
+  const others = (payload.t || []).filter((id) => id !== payload.p).map(giftById).filter(Boolean);
+  $('#received-others-wrap').hidden = others.length === 0;
+  $('#received-others').innerHTML = '';
+  others.forEach((other) => {
+    const li = document.createElement('li');
+    li.textContent = `${other.emoji} ${other.name}（${other.budget}）`;
+    $('#received-others').appendChild(li);
+  });
+
+  const answerList = $('#received-answers');
+  answerList.innerHTML = '';
+  answers.forEach((ans) => {
+    const question = questionById(ans.qid);
+    const choice = question.choices[ans.ci];
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="qa-q"></span><span class="qa-a"></span>';
+    li.querySelector('.qa-q').textContent = question.text;
+    li.querySelector('.qa-a').textContent = `${choice.emoji} ${choice.label}`;
+    answerList.appendChild(li);
+  });
+
+  const topTags = Object.entries(scores)
+    .filter(([tag, value]) => value > 0 && TAG_LABELS[tag])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+  $('#received-tags').innerHTML = '';
+  topTags.forEach(([tag]) => {
+    const span = document.createElement('span');
+    span.className = 'tag';
+    span.textContent = TAG_LABELS[tag];
+    $('#received-tags').appendChild(span);
+  });
+
+  showScreen('received');
+}
+
+/* ---------- 起動 ---------- */
+
+function start(fresh) {
+  if (fresh) {
+    state.answers = [];
+    state.sessionId = newSessionId();
+    state.startedAt = new Date().toISOString();
+    clearSaved();
+    save();
+  }
+  state.finalPick = null;
+  state.offset = 0;
+  state.message = '';
+  $('#message-input').value = '';
+  renderQuestion();
+}
+
+function init() {
+  $('#start-button').addEventListener('click', () => start(true));
+  $('#resume-button').addEventListener('click', () => start(false));
+  $('#back-button').addEventListener('click', goBack);
+  $('#more-button').addEventListener('click', showMore);
+  $('#retry-button').addEventListener('click', () => start(true));
+  $('#send-back-button').addEventListener('click', renderResult);
+  $('#copy-button').addEventListener('click', copyResult);
+  $('#message-input').addEventListener('input', (event) => {
+    state.message = event.target.value;
+    refreshShareLinks();
+    reportMessageSoon();
+  });
+
+  const match = location.hash.match(/^#r=(.+)$/);
+  if (match) {
+    try {
+      renderReceived(decodePayload(match[1]));
+      return;
+    } catch (e) {
+      // 壊れたリンクなら、ふつうにトップから始めてもらう
+    }
+  }
+
+  const saved = loadSaved();
+  state.sessionId = (saved && saved.sessionId) || newSessionId();
+  state.startedAt = (saved && saved.startedAt) || new Date().toISOString();
+  state.answers = saved ? saved.answers : [];
+  $('#resume-button').hidden = state.answers.length === 0;
+
+  Transport.onStatus(renderStatus);
+  Transport.init();
+
+  showScreen('intro');
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+</script>

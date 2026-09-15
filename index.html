@@ -3,10 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>お母さん、お誕生日おめでとう｜ほしいものクイズ</title>
-<meta name="description" content="2択・3択に答えるだけ。お母さんが本当に欲しいものを、息子がこっそり探すクイズです。">
-<meta name="theme-color" content="#fff7f0">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎂</text></svg>">
+<title>ほしいものクイズ</title>
+<meta name="description" content="2択・3択を押していくだけで、母が本当に欲しいものを絞りこむ還暦祝いのクイズ。">
+<meta name="theme-color" content="#fbf7f3">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎁</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;700&family=Zen+Maru+Gothic:wght@400;700&display=swap">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -16,20 +19,28 @@
   <!-- ① はじめの画面 -->
   <section class="screen" data-screen="intro">
     <div class="hero">
-      <div class="hero-emoji">🎂</div>
-      <h1>お母さん、<br>60歳のお誕生日おめでとう</h1>
+      <svg class="mizuhiki" viewBox="0 0 120 84" role="img" aria-label="水引の飾り結び">
+        <g fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <path class="mz-red" d="M60 44C36 16 10 30 23 50c12 18 37 8 37-6Z"/>
+          <path class="mz-red" d="M60 44c24-28 50-14 37 6-12 18-37 8-37-6Z"/>
+          <path class="mz-gold" d="M46 56c-3 12-7 18-14 24"/>
+          <path class="mz-gold" d="M74 56c3 12 7 18 14 24"/>
+          <path class="mz-gold" d="M52 50h16"/>
+        </g>
+      </svg>
+      <p class="eyebrow">還暦おめでとう</p>
+      <h1>お母さんが本当に<br>ほしいものを当てます</h1>
       <p class="lead">
-        「お菓子でいいよ」と言ってくれるけれど、<br>
-        せっかくの節目なので、ちゃんと選びたいのです。
+        「お菓子でいいよ」と言ってくれるけれど、せっかくの60歳なので、
+        ちゃんと選びたいのです。
       </p>
       <p class="lead">
-        2つか3つの中から、ピンとくるほうを押していくだけ。<br>
-        10問くらいで終わります。最後に、その結果を<br>
-        息子に送るボタンが出てきます。
+        2つか3つの中から、ピンとくるほうを押していくだけ。10問くらいで終わります。
+        押した答えは、そのつど息子に届きます。
       </p>
       <button type="button" id="start-button" class="primary">はじめる</button>
       <button type="button" id="resume-button" class="secondary" hidden>前回のつづきから</button>
-      <p class="fine">※ 答えは、送るボタンを押すまで誰にも届きません。</p>
+      <p class="fine">途中でやめても大丈夫です。そこまでの答えが届きます。</p>
     </div>
   </section>
 
@@ -42,53 +53,66 @@
     <h2 class="question" id="question-text"></h2>
     <p class="question-sub" id="question-sub" hidden></p>
     <div class="choices" id="choices"></div>
+    <p class="send-status" hidden></p>
     <button type="button" id="back-button" class="ghost">← ひとつ前にもどる</button>
   </section>
 
   <!-- ③ 結果画面 -->
   <section class="screen" data-screen="result" hidden>
-    <h2 class="result-title">たぶん、これが近いです 🎁</h2>
+    <h2 class="result-title">たぶん、これが近いです</h2>
     <p class="result-lead">この中で、いちばんピンとくるものを押してください。</p>
     <div class="result-list" id="result-list"></div>
     <button type="button" id="more-button" class="secondary">うーん、ほかの候補も見る</button>
     <button type="button" id="retry-button" class="ghost">最初からやりなおす</button>
   </section>
 
-  <!-- ④ 送る画面 -->
+  <!-- ④ おわりの画面 -->
   <section class="screen" data-screen="send" hidden>
-    <h2 class="result-title">息子に知らせましょう 📮</h2>
+    <h2 class="result-title">ありがとうございました</h2>
     <div class="picked">
       <div class="picked-emoji" id="picked-emoji"></div>
-      <div>
+      <div class="picked-text">
         <div class="picked-name" id="picked-name"></div>
         <div class="picked-budget" id="picked-budget"></div>
       </div>
     </div>
 
-    <label class="field">
+    <label class="field" for="message-input">
       <span class="field-label">ひとこと（書かなくても大丈夫です）</span>
       <textarea id="message-input" rows="3" maxlength="400"
         placeholder="例：色は紺か茶色がいいな。ありがとう。"></textarea>
     </label>
 
-    <div class="send-buttons">
-      <button type="button" id="copy-button" class="primary">文章をコピーする</button>
-      <a id="share-line" class="primary primary--line" href="#" target="_blank" rel="noopener">LINEで送る</a>
-      <a id="share-mail" class="secondary" href="#">メールで送る</a>
+    <!-- 自動で送れているとき -->
+    <div class="done-note" id="auto-done" hidden>
+      <p class="send-status" hidden></p>
+      <p class="fine">
+        この画面はもう閉じてしまって大丈夫です。
+        ひとことを書き足したら、それも自動で届きます。
+      </p>
     </div>
-    <p class="copy-status" id="copy-status"></p>
-    <textarea id="fallback-text" class="fallback" rows="6" readonly hidden></textarea>
+
+    <!-- 自動送信が使えないときだけ出る、手で送るボタン -->
+    <div class="done-note" id="manual-send" hidden>
+      <div class="send-buttons">
+        <button type="button" id="copy-button" class="primary">文章をコピーする</button>
+        <a id="share-line" class="primary primary--line" href="#" target="_blank" rel="noopener">LINEで送る</a>
+        <a id="share-mail" class="secondary" href="#">メールで送る</a>
+      </div>
+      <p class="copy-status" id="copy-status"></p>
+      <textarea id="fallback-text" class="fallback" rows="6" readonly hidden></textarea>
+    </div>
 
     <button type="button" id="send-back-button" class="ghost">← 結果にもどる</button>
   </section>
 
   <!-- ⑤ 息子が結果を受け取る画面（リンクを開いたとき） -->
   <section class="screen" data-screen="received" hidden>
-    <h2 class="result-title">お母さんの答えが届きました 💌</h2>
+    <h2 class="result-title">お母さんの答えが届きました</h2>
 
-    <div class="picked picked--big">
+    <div class="picked">
       <div class="picked-emoji" id="received-emoji"></div>
-      <div>
+      <div class="picked-text">
         <div class="picked-name" id="received-name"></div>
         <div class="picked-budget" id="received-budget"></div>
         <div class="picked-note" id="received-note"></div>
@@ -101,20 +125,26 @@
     </div>
 
     <div id="received-others-wrap">
-      <h3 class="sub-title">次点だった候補</h3>
+      <h3>次点だった候補</h3>
       <ul class="plain-list" id="received-others"></ul>
     </div>
 
-    <h3 class="sub-title">好みのキーワード</h3>
-    <div class="tags" id="received-tags"></div>
+    <div>
+      <h3>好みのキーワード</h3>
+      <div class="tags" id="received-tags"></div>
+    </div>
 
-    <h3 class="sub-title">答えの全部</h3>
-    <ul class="qa-list" id="received-answers"></ul>
+    <div>
+      <h3>答えの全部</h3>
+      <ul class="qa-list" id="received-answers"></ul>
+    </div>
   </section>
 
 </main>
 
+<script src="assets/config.js"></script>
 <script src="assets/data.js"></script>
+<script src="assets/transport.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
