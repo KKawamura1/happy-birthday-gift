@@ -66,12 +66,23 @@
     <button type="button" id="retry-button" class="ghost">最初からやりなおす</button>
   </section>
 
-  <!-- ④ おわりの画面 -->
+  <!-- ④ 深掘りの画面（選んだあと、具体的な品まで絞る） -->
+  <section class="screen" data-screen="refine" hidden>
+    <p class="eyebrow eyebrow--left" id="refine-eyebrow"></p>
+    <h2 class="question" id="refine-question"></h2>
+    <p class="result-lead">もう少しだけ、細かく教えてください。</p>
+    <div class="choices" id="refine-choices"></div>
+    <p class="send-status" hidden></p>
+    <button type="button" id="refine-back" class="ghost">← ひとつ前にもどる</button>
+  </section>
+
+  <!-- ⑤ おわりの画面 -->
   <section class="screen" data-screen="send" hidden>
     <h2 class="result-title">ありがとうございました</h2>
     <div class="picked">
       <div class="picked-emoji" id="picked-emoji"></div>
       <div class="picked-text">
+        <div class="picked-category" id="picked-category" hidden></div>
         <div class="picked-name" id="picked-name"></div>
       </div>
     </div>
@@ -105,13 +116,14 @@
     <button type="button" id="send-back-button" class="ghost">← 結果にもどる</button>
   </section>
 
-  <!-- ⑤ 息子が結果を受け取る画面（リンクを開いたとき） -->
+  <!-- ⑥ 息子が結果を受け取る画面（リンクを開いたとき） -->
   <section class="screen" data-screen="received" hidden>
     <h2 class="result-title">お母さんの答えが届きました</h2>
 
     <div class="picked">
       <div class="picked-emoji" id="received-emoji"></div>
       <div class="picked-text">
+        <div class="picked-category" id="received-category" hidden></div>
         <div class="picked-name" id="received-name"></div>
         <div class="picked-note" id="received-note"></div>
       </div>

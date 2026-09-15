@@ -132,6 +132,7 @@ h3 {
 }
 
 .lead { margin: 0; color: var(--ink-soft); font-size: 1rem; text-wrap: pretty; }
+.eyebrow--left { text-align: left; letter-spacing: 0.15em; text-indent: 0; }
 .fine { margin: 0; color: var(--ink-soft); font-size: 0.85rem; }
 
 /* ---------- ボタン ---------- */
@@ -308,6 +309,12 @@ h3 {
 }
 .picked-emoji { font-size: 2.6rem; line-height: 1; }
 .picked-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.picked-category {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--kanreki);
+}
 .picked-name { font-size: 1.15rem; font-weight: 700; line-height: 1.5; }
 .picked-note { font-size: 0.9rem; color: var(--ink-soft); }
 
@@ -434,12 +441,23 @@ textarea {
     <button type="button" id="retry-button" class="ghost">最初からやりなおす</button>
   </section>
 
-  <!-- ④ おわりの画面 -->
+  <!-- ④ 深掘りの画面（選んだあと、具体的な品まで絞る） -->
+  <section class="screen" data-screen="refine" hidden>
+    <p class="eyebrow eyebrow--left" id="refine-eyebrow"></p>
+    <h2 class="question" id="refine-question"></h2>
+    <p class="result-lead">もう少しだけ、細かく教えてください。</p>
+    <div class="choices" id="refine-choices"></div>
+    <p class="send-status" hidden></p>
+    <button type="button" id="refine-back" class="ghost">← ひとつ前にもどる</button>
+  </section>
+
+  <!-- ⑤ おわりの画面 -->
   <section class="screen" data-screen="send" hidden>
     <h2 class="result-title">ありがとうございました</h2>
     <div class="picked">
       <div class="picked-emoji" id="picked-emoji"></div>
       <div class="picked-text">
+        <div class="picked-category" id="picked-category" hidden></div>
         <div class="picked-name" id="picked-name"></div>
       </div>
     </div>
@@ -473,13 +491,14 @@ textarea {
     <button type="button" id="send-back-button" class="ghost">← 結果にもどる</button>
   </section>
 
-  <!-- ⑤ 息子が結果を受け取る画面（リンクを開いたとき） -->
+  <!-- ⑥ 息子が結果を受け取る画面（リンクを開いたとき） -->
   <section class="screen" data-screen="received" hidden>
     <h2 class="result-title">お母さんの答えが届きました</h2>
 
     <div class="picked">
       <div class="picked-emoji" id="received-emoji"></div>
       <div class="picked-text">
+        <div class="picked-category" id="received-category" hidden></div>
         <div class="picked-name" id="received-name"></div>
         <div class="picked-note" id="received-note"></div>
       </div>
@@ -652,6 +671,10 @@ const GIFTS = [
   { id: 'futon_dryer', emoji: '🛏️', name: '布団乾燥機',
     note: '寝る前に30分でぽかぽかの布団に。梅雨どきも冬もうれしい一台。',
     tags: ['appliance', 'cleaning', 'sleep', 'warm', 'practical'] },
+
+  { id: 'big_appliance', emoji: '🏠', name: '大きな家電の買い替え',
+    note: '洗濯機や冷蔵庫など、古くなってきたものを一台。設置と処分まで手配します。',
+    tags: ['appliance', 'practical', 'cleaning', 'kitchen', 'tech_ok', 'home'] },
 
   { id: 'humidifier', emoji: '💨', name: '加湿器・空気清浄機',
     note: '喉と肌のために。つけっぱなしでいいので、機械が苦手でも困りません。',
@@ -990,6 +1013,391 @@ const QUESTIONS = [
     ] }
 ];
 
+/*
+ * 深掘り（第2段階）
+ *
+ * 候補を1つ選んでもらったあと、その品についてだけ1〜2問たずねて、
+ * 「果物」ではなく「桃」、「大きな家電」ではなく「洗濯機」まで絞りこむ。
+ *
+ * choices の各項目は、次のどちらか:
+ *   - name と note を持つ … そこで確定
+ *   - next を持つ         … さらにもう一段たずねる
+ *
+ * 書いていない品は深掘りなしで、選んだ時点で終わります。
+ */
+const REFINEMENTS = {
+  /* ── 食べもの・飲みもの ── */
+  sweets_set: { question: 'お菓子なら、どれがいちばん？', choices: [
+    { emoji: '🍰', label: '洋菓子', name: '洋菓子の詰め合わせ', note: '有名店の焼き菓子とケーキ。日持ちするものを中心に。' },
+    { emoji: '🍡', label: '和菓子', name: '和菓子の詰め合わせ', note: '老舗のどら焼きや羊羹。お茶うけにちょうどいいものを。' },
+    { emoji: '🍫', label: 'チョコレート', name: '専門店のチョコレート', note: 'ひと粒ずつ味のちがうボンボンショコラの箱。' },
+    { emoji: '🍮', label: 'プリンやゼリー', name: '冷やして食べる生菓子', note: 'プリンやフルーツゼリーの詰め合わせ。冷蔵便で。' }
+  ]},
+
+  fruit: { question: '果物なら、どれがいちばん好きですか？', choices: [
+    { emoji: '🍑', label: '桃', next: { question: '桃は、どちらが好みですか？', choices: [
+      { emoji: '🤍', label: 'やわらかい白桃', name: '旬のやわらかい白桃', note: '食べごろを見計らって産地から直送してもらいます。' },
+      { emoji: '💛', label: 'かたい黄桃・ネクタリン', name: '黄桃・ネクタリンの詰め合わせ', note: 'こりっとした食感のもの。日持ちもします。' }
+    ]}},
+    { emoji: '🍇', label: 'ぶどう', name: 'シャインマスカット', note: '皮ごと食べられる大粒のもの。種もありません。' },
+    { emoji: '🍓', label: 'いちご', name: 'ブランドいちごの詰め合わせ', note: 'あまおうや紅ほっぺなど、粒の大きいものを冬に。' },
+    { emoji: '🍊', label: 'りんごや柑橘', name: 'りんご・柑橘の詰め合わせ', note: '日持ちするので、少しずつ食べられます。' }
+  ]},
+
+  gourmet: { question: 'どれがいちばん食べたいですか？', choices: [
+    { emoji: '🦀', label: 'かに・海鮮', name: 'かに・海鮮の詰め合わせ', note: 'かにやほたてなど。鍋にもそのままにも。' },
+    { emoji: '🍱', label: 'うなぎ', name: 'うなぎの蒲焼き', note: '温めるだけで食べられるもの。何食かに分けられます。' },
+    { emoji: '🥩', label: 'お肉', name: 'ブランド牛のすき焼き・ステーキ用', note: '少量でも満足できる、いい部位のものを。' },
+    { emoji: '🐟', label: '干物・練り物', name: '干物・練り物の詰め合わせ', note: '毎日の食卓に出せるもの。冷凍で長く置けます。' }
+  ]},
+
+  tea_sub: { question: 'お茶は、どれがお好きですか？', choices: [
+    { emoji: '🍵', label: '煎茶', name: '煎茶の定期便', note: '産地ちがいの煎茶が毎月。飲みくらべができます。' },
+    { emoji: '🌿', label: '玉露・抹茶', name: '玉露・抹茶の定期便', note: 'ゆっくり淹れて味わうお茶。茶器とあわせても。' },
+    { emoji: '🫖', label: 'ほうじ茶・番茶', name: 'ほうじ茶・番茶の定期便', note: '香ばしくて、夜でも飲みやすいもの。' },
+    { emoji: '☕', label: '紅茶', name: '紅茶の定期便', note: '茶葉とティーバッグを混ぜて。お菓子と合わせて。' }
+  ]},
+
+  coffee_beans: { question: 'コーヒーは、どんなのが好みですか？', choices: [
+    { emoji: '🌤️', label: 'すっきり（浅煎り）', name: '浅煎りコーヒー豆の定期便', note: '酸味のある明るい味。豆の説明をつけて送ります。' },
+    { emoji: '🌑', label: 'こっくり（深煎り）', name: '深煎りコーヒー豆の定期便', note: '苦みとコクのあるもの。牛乳ともよく合います。' },
+    { emoji: '🌙', label: 'カフェインの少ないもの', name: 'カフェインレスコーヒーの定期便', note: '夜でも飲めるもの。味はしっかりしています。' },
+    { emoji: '📦', label: '手軽なドリップバッグ', name: 'ドリップバッグの詰め合わせ', note: 'お湯を注ぐだけ。器具がいりません。' }
+  ]},
+
+  sake: { question: 'お酒は、どれがお好きですか？', choices: [
+    { emoji: '🍶', label: '日本酒', name: '日本酒の飲みくらべセット', note: '小瓶が数本。冷やでも燗でも。' },
+    { emoji: '🍷', label: 'ワイン', name: 'ワインの飲みくらべセット', note: 'ハーフボトルを何本か。飲みきりやすい量で。' },
+    { emoji: '🥃', label: '焼酎', name: '焼酎の飲みくらべセット', note: '芋・麦・米を少しずつ。' },
+    { emoji: '🍑', label: '梅酒や果実酒', name: '梅酒・果実酒の詰め合わせ', note: '甘くて飲みやすいもの。食後に少しずつ。' }
+  ]},
+
+  rice: { question: 'お米は、どんなのがお好きですか？', choices: [
+    { emoji: '✨', label: 'つやつやで甘いもの', name: 'つや姫・ゆめぴりかの定期便', note: '粒が立って甘みのある銘柄を毎月。' },
+    { emoji: '🍚', label: 'あっさりした定番', name: 'コシヒカリ・ななつぼしの定期便', note: 'おかずを選ばない、食べ飽きない味。' },
+    { emoji: '🌾', label: '玄米や雑穀', name: '玄米・雑穀米の定期便', note: '体を気づかう人へ。食べやすく精米したものも。' },
+    { emoji: '🎁', label: '食べくらべたい', name: 'お米の食べくらべセット', note: '少量パックで何種類も。当たりを探せます。' }
+  ]},
+
+  /* ── 家電・台所 ── */
+  big_appliance: { question: '大きな家電なら、どれが助かりますか？', choices: [
+    { emoji: '🧺', label: '洗濯機', next: { question: '洗濯機は、どちらがいいですか？', choices: [
+      { emoji: '🌀', label: '今と同じ縦型', name: '縦型洗濯機', note: '使い方が変わらないので迷いません。静かなものを選びます。' },
+      { emoji: '♨️', label: '乾燥までできるドラム式', name: 'ドラム式洗濯乾燥機', note: '干す手間が減ります。設置できるか先に確認します。' }
+    ]}},
+    { emoji: '🧊', label: '冷蔵庫', next: { question: '冷蔵庫で気になるのは？', choices: [
+      { emoji: '📏', label: 'もっと入る大きさ', name: '大容量の冷蔵庫', note: 'まとめ買いしても入るもの。搬入経路を確認します。' },
+      { emoji: '🤫', label: '静かさ・省エネ', name: '静音・省エネの冷蔵庫', note: '夜も気にならないもの。電気代も下がります。' }
+    ]}},
+    { emoji: '❄️', label: 'エアコン', name: 'エアコンの買い替え', note: '工事も含めて手配します。夏と冬の効きが変わります。' },
+    { emoji: '📺', label: 'テレビ', name: '大きな画面のテレビ', note: '見やすい大きさのもの。配線と設定まで済ませます。' }
+  ]},
+
+  coffee_maker: { question: '台所に置くなら、どれがいいですか？', choices: [
+    { emoji: '⚙️', label: '豆から挽けるもの', name: 'ミル付き全自動コーヒーメーカー', note: '豆を入れてボタンひとつ。挽きたてが飲めます。' },
+    { emoji: '🫖', label: '上質な電気ケトル', name: '温度調節つき電気ケトル', note: 'お茶の種類に合わせた温度で沸かせます。' },
+    { emoji: '☕', label: 'エスプレッソマシン', name: 'カプセル式エスプレッソマシン', note: 'カプセルを入れるだけ。片づけも簡単です。' },
+    { emoji: '💧', label: '手で淹れる道具一式', name: 'ドリップ用の道具とミル', note: '淹れる時間そのものを楽しむ人へ。' }
+  ]},
+
+  cook_pot: { question: '台所で、いちばん助かるのは？', choices: [
+    { emoji: '🍲', label: '材料を入れて待つだけの鍋', name: '自動調理鍋', note: '煮込みもカレーもほったらかしで作れます。' },
+    { emoji: '🥘', label: 'みんなで囲めるホットプレート', name: 'ホットプレート', note: '焼き肉もお好み焼きも。人が集まる日に。' },
+    { emoji: '🍚', label: 'ごはんがおいしく炊けるもの', name: '高性能な炊飯器', note: '毎日食べるものなので、いちばん効きます。' },
+    { emoji: '🍞', label: 'パンや朝ごはんのもの', name: 'トースター・オーブン', note: '外はさくっと、中はふわっと焼けるもの。' }
+  ]},
+
+  robot_cleaner: { question: '掃除で、いちばん面倒なのは？', choices: [
+    { emoji: '🤖', label: '掃除機をかけること自体', name: '自動で動くロボット掃除機', note: '留守のあいだに終わっています。段差にも強いものを。' },
+    { emoji: '🪶', label: '掃除機が重いこと', name: '軽いスティック掃除機', note: '片手で持てる軽さ。さっと出してさっとかけられます。' },
+    { emoji: '🧽', label: '床の拭き掃除', name: '水拭きもできる掃除機', note: 'かけながら拭けるので、二度手間がなくなります。' },
+    { emoji: '🪟', label: '窓や高いところ', name: '窓・高所用の掃除道具一式', note: '脚立に乗らずに届くもの。危なくありません。' }
+  ]},
+
+  futon_dryer: { question: '干すことで困っているのは？', choices: [
+    { emoji: '🛏️', label: '布団が干せない', name: 'マット不要の布団乾燥機', note: 'ノズルを差しこむだけ。寝る前の30分でぽかぽかに。' },
+    { emoji: '👕', label: '洗濯物が乾かない', name: '衣類乾燥除湿機', note: '部屋干しでも生乾きになりません。梅雨どきに。' },
+    { emoji: '🧹', label: '布団のほこり', name: 'ふとん専用の掃除機', note: 'たたいて吸うタイプ。ダニ対策にも。' }
+  ]},
+
+  humidifier: { question: '空気のことで気になるのは？', choices: [
+    { emoji: '💧', label: '乾燥', name: '加湿器', note: '喉と肌のために。手入れが簡単なものを選びます。' },
+    { emoji: '🌫️', label: 'ほこりや花粉', name: '空気清浄機', note: 'つけっぱなしでいいので、機械が苦手でも困りません。' },
+    { emoji: '🔄', label: '両方', name: '加湿空気清浄機', note: '一台で済むので置き場所を取りません。' }
+  ]},
+
+  hot_carpet: { question: 'どこが寒いですか？', choices: [
+    { emoji: '🛏️', label: '寝るとき', name: '電気毛布・敷きパッド', note: '寝る前に温めておけます。タイマーつきで。' },
+    { emoji: '🦶', label: '足もと', name: '足元ヒーター・電気あんか', note: '座っているあいだの足先を温めます。' },
+    { emoji: '🏠', label: '部屋そのもの', name: 'ホットカーペット', note: '床から温まるので、部屋全体がやわらかくなります。' },
+    { emoji: '🍊', label: 'こたつが欲しい', name: 'こたつ・こたつ布団', note: '一度入ると出られないやつです。' }
+  ]},
+
+  knife: { question: '台所の道具なら、どれを新しくしたいですか？', choices: [
+    { emoji: '🔪', label: '包丁', name: 'よく切れる包丁', note: '研ぎ直しながら何十年も使えるもの。' },
+    { emoji: '🪵', label: 'まな板', name: '軽くて清潔なまな板', note: '洗いやすく、乾きやすいもの。' },
+    { emoji: '🍳', label: '鍋やフライパン', name: '軽い鍋・フライパン', note: '重い鍋は手首にこたえるので、軽いものを。' },
+    { emoji: '🫙', label: '保存容器', name: '保存容器のセット', note: 'そのまま温められて、重ねて置けるもの。' }
+  ]},
+
+  tableware: { question: '器なら、どれがいいですか？', choices: [
+    { emoji: '🍵', label: '湯呑み・湯呑みセット', name: '夫婦湯呑み', note: '名前を入れられる窯元もあります。' },
+    { emoji: '🍚', label: 'ごはん茶碗', name: '夫婦茶碗', note: '毎日手に取るもの。軽さで選びます。' },
+    { emoji: '🍽️', label: '取り皿や大皿', name: '普段づかいの器のセット', note: '食洗機に入れられるものを選びます。' },
+    { emoji: '🥢', label: 'お箸やカトラリー', name: '塗りの箸・カトラリーのセット', note: '名入れができます。来客用にも。' }
+  ]},
+
+  /* ── 美容・くつろぎ ── */
+  hair_dryer: { question: '美容の道具なら、どれが嬉しいですか？', choices: [
+    { emoji: '💨', label: 'ドライヤー', name: '速乾・低温の高級ドライヤー', note: '短時間で乾いて、髪が傷みません。軽いものを。' },
+    { emoji: '💇', label: 'ヘアアイロン・カーラー', name: 'ヘアアイロン・ホットカーラー', note: '朝の支度が早くなります。' },
+    { emoji: '✨', label: '顔のお手入れの機械', name: '美顔器', note: 'テレビを見ながら使えるもの。' },
+    { emoji: '🦷', label: '電動歯ブラシ', name: '電動歯ブラシ', note: '歯ぐきにやさしいモードがあるもの。' }
+  ]},
+
+  massager: { question: 'どこがいちばんつらいですか？', choices: [
+    { emoji: '🫸', label: '肩・首', name: '肩用マッサージクッション', note: '椅子に置いて、もたれるだけ。' },
+    { emoji: '🦵', label: '腰・脚', name: 'マッサージガン', note: '当てたいところにピンポイントで。軽いものを。' },
+    { emoji: '🦶', label: '足・ふくらはぎ', name: 'フットマッサージャー', note: '足を入れるだけ。むくみが取れます。' },
+    { emoji: '👁️', label: '目の疲れ', name: 'ホットアイマスク・目元ケア', note: '寝る前の数分で、翌朝がちがいます。' }
+  ]},
+
+  skincare: { question: 'お手入れで気になるのは？', choices: [
+    { emoji: '💧', label: '乾燥', name: '保湿の化粧水・乳液セット', note: 'いつものより、ワンランク上のものを。' },
+    { emoji: '✨', label: 'はりやしわ', name: 'エイジングケアの美容液', note: '夜つけるタイプ。少量で長く使えます。' },
+    { emoji: '☀️', label: '日焼け', name: '日焼け止め・UVケアのセット', note: '毎日使うものなので、使い心地のいいものを。' },
+    { emoji: '🤲', label: '手あれ', name: 'ハンドクリーム・ネイルケア', note: '水仕事のあとに。香りちがいを何本か。' }
+  ]},
+
+  bath_gift: { question: 'お風呂のものなら、どれがいいですか？', choices: [
+    { emoji: '🛁', label: '入浴剤', name: '入浴剤の詰め合わせ', note: '毎晩ひとつずつ選ぶ楽しみ。香りちがいで。' },
+    { emoji: '🧂', label: 'バスソルト・温泉のもと', name: '温泉のもと・バスソルト', note: '家で温泉気分。体の芯から温まります。' },
+    { emoji: '🧴', label: 'シャンプーや石けん', name: '上質なシャンプー・ボディソープ', note: '毎日使うものを、ちょっといいものに。' },
+    { emoji: '🪮', label: 'お風呂の道具', name: 'バスグッズ一式', note: '湯上がりタオルやブラシなど、そろえて。' }
+  ]},
+
+  towel: { question: 'タオルなら、どれがいちばん使いますか？', choices: [
+    { emoji: '🛁', label: 'バスタオル', name: '今治のバスタオル', note: '厚手でふわっとしたもの。何枚あっても困りません。' },
+    { emoji: '🧻', label: 'フェイスタオル', name: '今治のフェイスタオルセット', note: '毎日使うぶん、多めに。' },
+    { emoji: '🥋', label: 'バスローブ', name: 'バスローブ', note: '湯上がりにさっと羽織れるもの。' },
+    { emoji: '🛌', label: 'ガーゼケット・肌掛け', name: 'ガーゼケット', note: '夏でも冬でも使える、軽い掛けもの。' }
+  ]},
+
+  bedding: { question: '寝具なら、どれを変えたいですか？', choices: [
+    { emoji: '🛏️', label: '枕', name: 'オーダー枕', note: '高さを測って作るもの。合うと朝がちがいます。' },
+    { emoji: '☁️', label: '掛け布団', name: '羽毛布団', note: '軽くて温かいもの。打ち直しもできます。' },
+    { emoji: '🧱', label: '敷きふとん・マットレス', name: '高反発マットレス・敷きパッド', note: '腰が沈まないもの。寝返りが楽になります。' },
+    { emoji: '🧣', label: '毛布', name: '上質な毛布', note: '肌ざわりのいいもの。洗えるタイプで。' }
+  ]},
+
+  cushion: { question: '座るものなら、どれがいいですか？', choices: [
+    { emoji: '🪑', label: '座椅子', name: '背もたれつきの座椅子', note: '腰を支えてくれるもの。角度が変えられます。' },
+    { emoji: '🛋️', label: 'クッション', name: '姿勢を支えるクッション', note: '今の椅子にのせるだけ。腰がまっすぐになります。' },
+    { emoji: '💺', label: 'しっかりした椅子', name: '肘掛けつきの椅子', note: '立ち座りが楽なもの。高さも選べます。' },
+    { emoji: '🦶', label: '足を上げるもの', name: 'フットレスト・オットマン', note: '足を上げるとむくみが引きます。' }
+  ]},
+
+  /* ── 身につけるもの ── */
+  pajama: { question: 'おうちで着るなら、どれがいいですか？', choices: [
+    { emoji: '🌙', label: 'パジャマ', name: '上質なパジャマ', note: 'シルクやガーゼ。肌ざわりで選びます。' },
+    { emoji: '🧥', label: 'はおるもの', name: 'カーディガン・はんてん', note: 'さっと羽織れるもの。洗えるタイプで。' },
+    { emoji: '🧦', label: '足まわり', name: '靴下・レッグウォーマー', note: '締めつけないもの。足先の冷えに効きます。' },
+    { emoji: '👘', label: 'ガウン・部屋着', name: 'ルームウェア一式', note: '来客があっても困らない、きちんと見えるもの。' }
+  ]},
+
+  jewelry: { question: 'アクセサリーなら、どれがいいですか？', choices: [
+    { emoji: '📿', label: 'ネックレス', name: '真珠のネックレス', note: 'お祝いの席にも法事にも使えるもの。' },
+    { emoji: '💍', label: '指輪', name: '誕生石の指輪', note: 'サイズを測ってから作ります。' },
+    { emoji: '👂', label: 'イヤリング・ピアス', name: '誕生石のイヤリング', note: '痛くならない留め具のものを選びます。' },
+    { emoji: '🎀', label: 'ブローチ', name: 'ブローチ', note: '服を選ばず使えます。着物にも合います。' }
+  ]},
+
+  stole: { question: '首まわりのものなら、どれがいいですか？', choices: [
+    { emoji: '🧣', label: 'ストール', name: '上質なストール', note: '一枚あると肌寒い日に便利。大判のものを。' },
+    { emoji: '🎀', label: 'スカーフ', name: 'シルクのスカーフ', note: '巻き方で雰囲気が変わります。明るい色を。' },
+    { emoji: '❄️', label: '冬のマフラー', name: 'カシミヤのマフラー', note: '軽くて暖かいもの。長く使えます。' },
+    { emoji: '👒', label: '帽子', name: '帽子', note: '日よけにも防寒にも。折りたためるものを。' }
+  ]},
+
+  shoes: { question: '靴なら、どれがいちばん要りますか？', choices: [
+    { emoji: '👟', label: '歩きやすいスニーカー', name: 'ウォーキングシューズ', note: '軽くて脱ぎ履きしやすいもの。' },
+    { emoji: '👠', label: 'きちんとした靴', name: '歩ける革靴・パンプス', note: 'お出かけ用でも痛くならないもの。' },
+    { emoji: '🩴', label: '夏のサンダル', name: 'サンダル', note: '足を支えてくれる、疲れにくいもの。' },
+    { emoji: '🥿', label: '室内履き', name: 'ルームシューズ', note: '床が冷たい家に。滑らないものを。' }
+  ]},
+
+  bag: { question: 'バッグなら、どんなのが使いやすいですか？', choices: [
+    { emoji: '👜', label: '手提げ・トート', name: '軽い本革のトートバッグ', note: 'A4が入る大きさ。とにかく軽いものを。' },
+    { emoji: '👝', label: '肩掛け', name: 'ショルダーバッグ', note: '手があくので、買い物のときに楽です。' },
+    { emoji: '🎒', label: 'リュック', name: '上品に見えるリュック', note: '両手があいて、肩もこりません。' },
+    { emoji: '💳', label: 'お財布や小物', name: '財布・小物入れ', note: '小銭が取り出しやすいもの。名入れもできます。' }
+  ]},
+
+  /* ── 出かける・体験する ── */
+  onsen: { question: '温泉なら、どんなところがいいですか？', choices: [
+    { emoji: '🚗', label: '近場でさっと', name: '近場の温泉宿の宿泊券', note: '日程を選ばず、思い立ったら行けます。' },
+    { emoji: '🚄', label: '遠くの有名なところ', name: '有名温泉地の宿泊券', note: '一度は行ってみたい宿を選べます。' },
+    { emoji: '🌊', label: '景色のいいところ', name: '海や山が見える宿の宿泊券', note: '部屋から景色が見える宿を中心に。' },
+    { emoji: '🎫', label: '自分で選びたい', name: '宿泊ギフト券（宿を選べるもの）', note: '冊子やサイトから好きな宿を選べます。' }
+  ]},
+
+  restaurant: { question: '食べに行くなら、どれがいいですか？', choices: [
+    { emoji: '🍣', label: '和食', name: '日本料理・お寿司のお食事券', note: '個室のあるお店を選びます。' },
+    { emoji: '🥩', label: '洋食', name: 'フレンチ・イタリアンのお食事券', note: '記念日らしいコースのあるお店で。' },
+    { emoji: '🥟', label: '中華', name: '中華料理のお食事券', note: '取り分けて食べられるので人数を選びません。' },
+    { emoji: '🏨', label: 'ホテルで', name: 'ホテルのランチ・アフタヌーンティー券', note: '昼なら気楽です。景色のいいところを。' }
+  ]},
+
+  ticket: { question: '観るなら、どれがいちばん楽しみですか？', choices: [
+    { emoji: '🎎', label: '歌舞伎・演劇', name: '歌舞伎・演劇のチケット', note: '演目を選んでもらえます。' },
+    { emoji: '🖼️', label: '美術展', name: '美術展のチケット', note: '会期の長いものなら、ゆっくり行けます。' },
+    { emoji: '🎤', label: '落語・寄席', name: '落語・寄席のチケット', note: '気楽に笑えます。近くの寄席でも。' },
+    { emoji: '🎭', label: 'ミュージカル', name: 'ミュージカルのチケット', note: '華やかな演目を。' }
+  ]},
+
+  concert: { question: '音楽なら、どれを聴きたいですか？', choices: [
+    { emoji: '🎻', label: 'クラシック', name: 'クラシックコンサートのチケット', note: '有名な曲がそろった公演を選びます。' },
+    { emoji: '🎤', label: '歌謡曲・演歌', name: '歌謡ショーのチケット', note: '好きな歌手の公演を探します。' },
+    { emoji: '🎷', label: 'ジャズ・ポップス', name: 'ジャズ・ポップスのライブチケット', note: '座って聴ける会場を選びます。' },
+    { emoji: '⛪', label: '合唱・オペラ', name: '合唱・オペラのチケット', note: '声の厚みは会場でしか味わえません。' }
+  ]},
+
+  cinema_ticket: { question: '映画は、どんなのを観ますか？', choices: [
+    { emoji: '🗾', label: '邦画', name: '映画館の回数券（邦画向け）', note: '好きなときに使えます。期限の長いものを。' },
+    { emoji: '🌍', label: '洋画', name: '映画館の回数券（洋画向け）', note: '字幕でも吹替でも使えます。' },
+    { emoji: '🎬', label: 'なんでも観る', name: '映画館の回数券', note: 'どの作品にも使えるものを多めに。' },
+    { emoji: '👫', label: '誰かと行きたい', name: '映画館のペア鑑賞券', note: '誘って行けるように2枚組で。' }
+  ]},
+
+  lesson: { question: 'やってみたいのは、どれですか？', choices: [
+    { emoji: '🏺', label: '陶芸', name: '陶芸の体験レッスン', note: '作ったお茶碗が後日届きます。' },
+    { emoji: '🍳', label: '料理', name: '料理教室の体験レッスン', note: '一日だけの単発講座なら気軽です。' },
+    { emoji: '💐', label: 'お花', name: 'フラワーアレンジの体験レッスン', note: '作ったものを持って帰れます。' },
+    { emoji: '🖌️', label: '絵や書', name: '絵画・書道の体験レッスン', note: '道具は貸してもらえます。' }
+  ]},
+
+  catalog: { question: 'カタログなら、どれがいいですか？', choices: [
+    { emoji: '🎈', label: '体験が載っているもの', name: '体験だけのカタログギフト', note: 'エステ、クルーズ、陶芸などから選べます。' },
+    { emoji: '🍖', label: '食べものが載っているもの', name: 'グルメカタログ', note: '全国のお取り寄せから選べます。' },
+    { emoji: '🧺', label: '雑貨が載っているもの', name: '雑貨のカタログギフト', note: '暮らしの道具を自分で選べます。' },
+    { emoji: '📚', label: '全部載っているもの', name: '総合カタログギフト', note: '迷う時間ごと楽しんでもらえます。' }
+  ]},
+
+  /* ── 音楽・映像 ── */
+  music_player: { question: '音楽は、どうやって聴きたいですか？', choices: [
+    { emoji: '🗣️', label: '話しかけて出したい', name: 'スマートスピーカー', note: '「◯◯をかけて」で流れます。設定はこちらで。' },
+    { emoji: '💿', label: '持っているCDを聴きたい', name: 'CDも聴けるプレーヤー', note: '棚のCDがそのまま使えます。操作も簡単。' },
+    { emoji: '📻', label: 'ラジオも聴きたい', name: 'ラジオつきプレーヤー', note: '朝の習慣がそのまま続けられます。' },
+    { emoji: '🎧', label: 'ひとりでじっくり', name: 'ヘッドホン・イヤホン', note: '軽くて耳が痛くならないものを。' }
+  ]},
+
+  subscription_video: { question: 'どんなのを観たいですか？', choices: [
+    { emoji: '🎬', label: '映画', name: '映画が多い動画配信の視聴券', note: '昔の名作もそろっています。' },
+    { emoji: '📺', label: '日本のドラマ', name: '国内ドラマが多い視聴券', note: '見逃した回もさかのぼれます。' },
+    { emoji: '🇰🇷', label: '韓国ドラマ', name: '韓流ドラマが多い視聴券', note: '長いシリーズも一気に観られます。' },
+    { emoji: '🏯', label: '時代劇', name: '時代劇が観られる視聴券', note: '専門のチャンネルもあります。' }
+  ]},
+
+  /* ── 趣味・学び ── */
+  flower_sub: { question: 'お花は、どんなかたちがいいですか？', choices: [
+    { emoji: '💐', label: '切り花が届くの', name: '花の定期便', note: '毎月ちがう花が届きます。花瓶つきのものも。' },
+    { emoji: '🪴', label: '鉢植え', name: '鉢植え・寄せ植え', note: '長く楽しめます。手のかからない種類を。' },
+    { emoji: '🌾', label: '枯れないもの', name: 'ドライフラワー・プリザーブド', note: '水やりがいりません。飾りっぱなしでも大丈夫。' },
+    { emoji: '🌸', label: '特別な一鉢', name: '胡蝶蘭などの特別な鉢', note: '還暦のお祝いらしい、華やかなもの。' }
+  ]},
+
+  garden_tools: { question: '庭仕事で、いちばん困るのは？', choices: [
+    { emoji: '✂️', label: '枝を切るのが重い', name: '軽い剪定ばさみ', note: '力が要らない構造のもの。手首が楽になります。' },
+    { emoji: '🚿', label: '水やり', name: 'じょうろ・軽量ホース', note: '軽くて、伸び縮みするもの。' },
+    { emoji: '🪴', label: '植える場所', name: 'プランター・培養土のセット', note: 'ベランダでも置ける大きさで。' },
+    { emoji: '🪑', label: 'しゃがむのがつらい', name: '園芸用の椅子・膝当て', note: '座ったまま作業できます。腰にきません。' }
+  ]},
+
+  herb_kit: { question: '育てるなら、どれがいいですか？', choices: [
+    { emoji: '🌿', label: 'ハーブ', name: 'ハーブの栽培キット', note: 'バジルやミント。摘んでその日の料理に。' },
+    { emoji: '🍅', label: 'ミニ野菜', name: 'ミニトマト・葉物の栽培キット', note: '収穫があると続きます。' },
+    { emoji: '🍄', label: 'きのこ', name: 'しいたけの栽培キット', note: '数日で出てきます。見ていて面白いです。' },
+    { emoji: '💡', label: '土を使わないもの', name: '水耕栽培キット', note: '室内でも汚れません。冬でも育ちます。' }
+  ]},
+
+  craft_kit: { question: '手芸なら、どれがお好きですか？', choices: [
+    { emoji: '🧶', label: '編みもの', name: '編みものキット', note: '毛糸と編み図のセット。できたら送ってもらいます。' },
+    { emoji: '🪡', label: '刺しゅう', name: '刺しゅうキット', note: '図案つき。少しずつ進められます。' },
+    { emoji: '🧵', label: 'パッチワーク・裁縫', name: 'パッチワークキット', note: '布のセットと型紙。大きい作品にも。' },
+    { emoji: '🎎', label: 'つまみ細工・和の手芸', name: 'つまみ細工のキット', note: '小さくて場所を取りません。飾れます。' }
+  ]},
+
+  books: { question: '読むなら、どんな本がいいですか？', choices: [
+    { emoji: '📕', label: '小説', name: '好きな作家の小説', note: '読みたかったものをまとめて。' },
+    { emoji: '📗', label: 'エッセイ', name: 'エッセイ集', note: '少しずつ読めるので、寝る前にも。' },
+    { emoji: '📘', label: '写真集・画集', name: '写真集・画集', note: '眺めるだけでも楽しいもの。大きい判で。' },
+    { emoji: '📙', label: '実用書・料理本', name: '料理本・暮らしの本', note: '作ってみたくなるもの。写真の多いものを。' }
+  ]},
+
+  letter_set: { question: '書くものなら、どれがいいですか？', choices: [
+    { emoji: '🖋️', label: '万年筆', name: '万年筆とインク', note: '書き味のいいもの。細めの字幅で。' },
+    { emoji: '✉️', label: '便箋と封筒', name: '上質な便箋・封筒のセット', note: '和紙のものなど。切手も添えて。' },
+    { emoji: '🖌️', label: '筆ペン・書道具', name: '筆ペン・書道具のセット', note: 'のし書きにも使えます。' },
+    { emoji: '📮', label: 'はがき・切手', name: '季節のはがきと切手', note: '出す口実があると続きます。' }
+  ]},
+
+  online_course: { question: '習うなら、どれがいいですか？', choices: [
+    { emoji: '🖌️', label: '書道・俳句', name: '書道・俳句の講座', note: '添削してもらえるものを。' },
+    { emoji: '🗣️', label: '英会話', name: '英会話の講座', note: '少人数かマンツーマンのものを選びます。' },
+    { emoji: '💻', label: 'パソコン・スマホ', name: 'スマホ・パソコン教室', note: 'ゆっくり教えてくれるところを探します。' },
+    { emoji: '🏯', label: '歴史・文学', name: '歴史・文学の講座', note: 'カルチャーセンターの単発講座でも。' }
+  ]},
+
+  /* ── 家族・つながり ── */
+  photo_frame: { question: '写真は、どんなふうに見たいですか？', choices: [
+    { emoji: '🖼️', label: '自動で切り替わるもの', name: '写真が自動で届くフォトフレーム', note: 'こちらから送ると勝手に増えます。設定は息子が。' },
+    { emoji: '🔍', label: '大きい画面で', name: '大きめのデジタルフォトフレーム', note: '離れていても見えるサイズのもの。' },
+    { emoji: '🕰️', label: '時計も兼ねたもの', name: '時計つきフォトフレーム', note: '普段は時計、ときどき写真。' }
+  ]},
+
+  photo_book: { question: '思い出のものなら、どれがいいですか？', choices: [
+    { emoji: '📖', label: '一冊の本にしたもの', name: '家族写真のフォトブック', note: '昔と今の写真をまとめて。手紙も挟みます。' },
+    { emoji: '📔', label: '自分で貼るアルバム', name: 'アルバムと写真のプリント', note: '並べる時間も楽しんでもらえます。' },
+    { emoji: '🖼️', label: '飾れるもの', name: '引き伸ばした写真とフレーム', note: '玄関や居間に飾れる大きさで。' },
+    { emoji: '🎥', label: '動くもの', name: '家族からのビデオメッセージ', note: '孫や親戚の顔も入れて、一本にまとめます。' }
+  ]},
+
+  tablet: { question: '話すときの道具なら、どれがいいですか？', choices: [
+    { emoji: '📱', label: 'タブレット', name: '文字の大きいタブレット', note: '見やすい設定にして、通話アプリも入れてから送ります。' },
+    { emoji: '📞', label: 'スマホの買い替え', name: '使いやすいスマートフォン', note: '文字が大きく設定できるもの。' },
+    { emoji: '🖥️', label: 'もっと大きい画面', name: 'テレビにつなぐビデオ通話の機械', note: '居間のテレビに顔が映ります。' }
+  ]},
+
+  trip_together: { question: '一緒に行くなら、どれくらいがいいですか？', choices: [
+    { emoji: '🌞', label: '日帰りで気軽に', name: '日帰りのおでかけ', note: '近場で。無理のない距離を選びます。' },
+    { emoji: '🌙', label: '一泊二日', name: '一泊二日の旅行', note: 'ちょうどいい長さ。宿はこちらで探します。' },
+    { emoji: '🗓️', label: '連泊でゆっくり', name: '連泊でゆっくりする旅行', note: '移動を減らして、同じ宿に滞在します。' },
+    { emoji: '🏠', label: 'こちらに来てほしい', name: '息子が帰省して過ごす日', note: '出かけなくても。家でゆっくり過ごします。' }
+  ]},
+
+  /* ── 体をいたわる ── */
+  walking_pole: { question: '散歩のものなら、どれが要りますか？', choices: [
+    { emoji: '🥢', label: '杖・ポール', name: 'ウォーキングポール', note: '軽くて、長さを変えられるもの。' },
+    { emoji: '🧥', label: '着るもの', name: 'ウォーキング用の上着', note: '軽くて風を通さないもの。洗えるタイプで。' },
+    { emoji: '🎒', label: '持ちもの', name: '軽いリュック・ウエストポーチ', note: '水筒が入る大きさ。肩がこらないもの。' },
+    { emoji: '⌚', label: '歩数がわかるもの', name: '歩数計・活動量計', note: '文字が大きく、充電が長もちするもの。' }
+  ]},
+
+  yoga: { question: '体を動かすなら、どれがいいですか？', choices: [
+    { emoji: '🧘', label: 'ヨガマット', name: 'ヨガマット', note: '厚手で、膝が痛くならないもの。' },
+    { emoji: '🎯', label: 'ほぐす道具', name: 'ストレッチポール・マッサージボール', note: '寝転がって乗るだけでも効きます。' },
+    { emoji: '⚪', label: 'バランスボール', name: 'バランスボール', note: '座っているだけで体幹に効きます。' },
+    { emoji: '💻', label: '教えてくれるもの', name: 'オンラインのヨガレッスン', note: '家で、自分のペースで。録画も見られます。' }
+  ]},
+
+  pet_goods: { question: 'ペットのものなら、どれが喜ばれますか？', choices: [
+    { emoji: '🍖', label: 'ごはん・おやつ', name: 'いいごはん・おやつの詰め合わせ', note: '普段より少しいいものを。' },
+    { emoji: '🛏️', label: 'ベッド・ハウス', name: 'ペット用のベッド', note: '洗えるもの。年をとった子にはやわらかいものを。' },
+    { emoji: '🧸', label: 'おもちゃ', name: 'おもちゃの詰め合わせ', note: '遊び方のちがうものを何種類か。' },
+    { emoji: '🪮', label: 'お手入れの道具', name: 'ブラシ・お手入れ用品', note: '毛が取れやすいもの。使う人にも楽なもの。' }
+  ]}
+};
+
 </script>
 <script>
 /* assets/transport.js */
@@ -1133,6 +1541,9 @@ const state = {
   startedAt: '',      // 始めた時刻
   answers: [],        // [{ qid, ci }]
   finalPick: null,    // 選ばれたプレゼントの id
+  refineStack: [],    // 深掘りで通ってきた質問（もどる用）
+  refinePath: [],     // 深掘りの答え [{ question, answer }]
+  finalItem: null,    // 深掘りで決まった具体的な品 { name, note }
   shownTop: [],       // 結果画面に出した候補の id
   offset: 0,          // 「ほかの候補も見る」で何件ずらしたか
   message: ''
@@ -1301,10 +1712,12 @@ function snapshot() {
     updatedAt: new Date().toISOString(),
     answeredCount: state.answers.length,
     finished: Boolean(picked),
-    answers: state.answers.map((ans) => {
-      const question = questionById(ans.qid);
-      return { question: question.text, answer: question.choices[ans.ci].label };
-    }),
+    answers: state.answers
+      .map((ans) => {
+        const question = questionById(ans.qid);
+        return { question: question.text, answer: question.choices[ans.ci].label };
+      })
+      .concat(state.refinePath),
     keywords: Object.keys(scores)
       .filter((tag) => scores[tag] > 0 && TAG_LABELS[tag])
       .sort((a, b) => tagWeight(scores, b) - tagWeight(scores, a))
@@ -1315,7 +1728,14 @@ function snapshot() {
       name: item.gift.name
     })),
     shown: state.shownTop.map((id) => giftById(id).name),
-    picked: picked ? { name: picked.name, note: picked.note } : null,
+    picked: picked
+      ? {
+          /* 「果物 → シャインマスカット」のように、大分類と具体名を1つにまとめる */
+          name: state.finalItem ? `${picked.name} → ${state.finalItem.name}` : picked.name,
+          note: state.finalItem ? state.finalItem.note : picked.note
+        }
+      : null,
+    refinements: state.refinePath,
     message: state.message.trim()
   };
 }
@@ -1431,8 +1851,10 @@ function renderResult() {
       reasons.length ? `→ ${reasons.join('・')} だから` : '';
     card.addEventListener('click', () => {
       state.finalPick = item.gift.id;
-      report();
-      renderSend();
+      state.refineStack = [];
+      state.refinePath = [];
+      state.finalItem = null;
+      startRefine();
     });
     list.appendChild(card);
   });
@@ -1445,6 +1867,69 @@ function renderResult() {
 function showMore() {
   state.offset += 3;
   renderResult();
+}
+
+/* ---------- 深掘り（第2段階） ---------- */
+
+/*
+ * 「果物」まで決まったら、次は「桃」まで聞く。
+ * 深掘りの質問が用意されていない品は、ここを素通りして送信画面へ。
+ */
+function startRefine() {
+  const tree = REFINEMENTS[state.finalPick];
+  if (!tree) {
+    report();
+    renderSend();
+    return;
+  }
+  state.refineStack = [tree];
+  renderRefine();
+}
+
+function renderRefine() {
+  const node = state.refineStack[state.refineStack.length - 1];
+  const gift = giftById(state.finalPick);
+
+  $('#refine-eyebrow').textContent = `${gift.emoji} ${gift.name}`;
+  $('#refine-question').textContent = node.question;
+
+  const list = $('#refine-choices');
+  list.innerHTML = '';
+  node.choices.forEach((choice) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'choice';
+    button.innerHTML = '<span class="choice-emoji"></span><span class="choice-label"></span>';
+    button.querySelector('.choice-emoji').textContent = choice.emoji;
+    button.querySelector('.choice-label').textContent = choice.label;
+    button.addEventListener('click', () => {
+      state.refinePath.push({ question: node.question, answer: choice.label });
+      if (choice.next) {
+        state.refineStack.push(choice.next);
+        renderRefine();
+        report();
+        return;
+      }
+      state.finalItem = { name: choice.name, note: choice.note };
+      report();
+      renderSend();
+    });
+    list.appendChild(button);
+  });
+
+  $('#refine-back').hidden = false;
+  renderStatus(Transport.status());
+  showScreen('refine');
+}
+
+function refineBack() {
+  state.refinePath.pop();
+  state.refineStack.pop();
+  if (state.refineStack.length === 0) {
+    renderResult();
+    return;
+  }
+  renderRefine();
 }
 
 /* ---------- 送信画面 ---------- */
@@ -1469,6 +1954,8 @@ function buildResultUrl() {
     a: state.answers.map((ans) => [ans.qid, ans.ci]),
     p: state.finalPick,
     t: state.shownTop,
+    d: state.finalItem,
+    rf: state.refinePath.map((step) => [step.question, step.answer]),
     m: state.message.slice(0, 400)
   };
   const base = location.origin + location.pathname;
@@ -1480,8 +1967,9 @@ function buildResultText() {
   const lines = [
     '🎂 お母さんの「ほしいものクイズ」の結果です',
     '',
-    `▼ えらんだのは：${gift.emoji} ${gift.name}`
+    `▼ えらんだのは：${gift.emoji} ${state.finalItem ? state.finalItem.name : gift.name}`
   ];
+  if (state.finalItem) lines.push(`　 （${gift.name}）`);
   if (state.message.trim()) {
     lines.push('', `▼ ひとこと：${state.message.trim()}`);
   }
@@ -1500,7 +1988,9 @@ function refreshShareLinks() {
 function renderSend() {
   const gift = giftById(state.finalPick);
   $('#picked-emoji').textContent = gift.emoji;
-  $('#picked-name').textContent = gift.name;
+  $('#picked-name').textContent = state.finalItem ? state.finalItem.name : gift.name;
+  $('#picked-category').textContent = state.finalItem ? gift.name : '';
+  $('#picked-category').hidden = !state.finalItem;
   $('#copy-status').textContent = '';
   refreshShareLinks();
   renderStatus(Transport.status());
@@ -1531,9 +2021,12 @@ function renderReceived(payload) {
   const gift = giftById(payload.p);
   const scores = tagScores(answers);
 
+  const detail = payload.d && typeof payload.d === 'object' ? payload.d : null;
   $('#received-emoji').textContent = gift ? gift.emoji : '🎁';
-  $('#received-name').textContent = gift ? gift.name : '（選択なし）';
-  $('#received-note').textContent = gift ? gift.note : '';
+  $('#received-name').textContent = detail ? detail.name : (gift ? gift.name : '（選択なし）');
+  $('#received-category').textContent = detail && gift ? gift.name : '';
+  $('#received-category').hidden = !(detail && gift);
+  $('#received-note').textContent = detail ? detail.note : (gift ? gift.note : '');
 
   const messageBox = $('#received-message');
   messageBox.hidden = !payload.m;
@@ -1550,14 +2043,20 @@ function renderReceived(payload) {
 
   const answerList = $('#received-answers');
   answerList.innerHTML = '';
+  const addRow = (question, answer) => {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="qa-q"></span><span class="qa-a"></span>';
+    li.querySelector('.qa-q').textContent = question;
+    li.querySelector('.qa-a').textContent = answer;
+    answerList.appendChild(li);
+  };
   answers.forEach((ans) => {
     const question = questionById(ans.qid);
     const choice = question.choices[ans.ci];
-    const li = document.createElement('li');
-    li.innerHTML = '<span class="qa-q"></span><span class="qa-a"></span>';
-    li.querySelector('.qa-q').textContent = question.text;
-    li.querySelector('.qa-a').textContent = `${choice.emoji} ${choice.label}`;
-    answerList.appendChild(li);
+    addRow(question.text, `${choice.emoji} ${choice.label}`);
+  });
+  (payload.rf || []).forEach(([question, answer]) => {
+    if (typeof question === 'string' && typeof answer === 'string') addRow(question, answer);
   });
 
   const topTags = Object.keys(scores)
@@ -1586,6 +2085,9 @@ function start(fresh) {
     save();
   }
   state.finalPick = null;
+  state.refineStack = [];
+  state.refinePath = [];
+  state.finalItem = null;
   state.offset = 0;
   state.message = '';
   $('#message-input').value = '';
@@ -1598,7 +2100,15 @@ function init() {
   $('#back-button').addEventListener('click', goBack);
   $('#more-button').addEventListener('click', showMore);
   $('#retry-button').addEventListener('click', () => start(true));
-  $('#send-back-button').addEventListener('click', renderResult);
+  $('#send-back-button').addEventListener('click', () => {
+    if (REFINEMENTS[state.finalPick]) {
+      state.refinePath = [];
+      startRefine();
+    } else {
+      renderResult();
+    }
+  });
+  $('#refine-back').addEventListener('click', refineBack);
   $('#copy-button').addEventListener('click', copyResult);
   $('#message-input').addEventListener('input', (event) => {
     state.message = event.target.value;

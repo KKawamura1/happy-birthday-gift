@@ -18,6 +18,9 @@ const state = {
   startedAt: '',      // 始めた時刻
   answers: [],        // [{ qid, ci }]
   finalPick: null,    // 選ばれたプレゼントの id
+  refineStack: [],    // 深掘りで通ってきた質問（もどる用）
+  refinePath: [],     // 深掘りの答え [{ question, answer }]
+  finalItem: null,    // 深掘りで決まった具体的な品 { name, note }
   shownTop: [],       // 結果画面に出した候補の id
   offset: 0,          // 「ほかの候補も見る」で何件ずらしたか
   message: ''
@@ -186,10 +189,12 @@ function snapshot() {
     updatedAt: new Date().toISOString(),
     answeredCount: state.answers.length,
     finished: Boolean(picked),
-    answers: state.answers.map((ans) => {
-      const question = questionById(ans.qid);
-      return { question: question.text, answer: question.choices[ans.ci].label };
-    }),
+    answers: state.answers
+      .map((ans) => {
+        const question = questionById(ans.qid);
+        return { question: question.text, answer: question.choices[ans.ci].label };
+      })
+      .concat(state.refinePath),
     keywords: Object.keys(scores)
       .filter((tag) => scores[tag] > 0 && TAG_LABELS[tag])
       .sort((a, b) => tagWeight(scores, b) - tagWeight(scores, a))
@@ -200,7 +205,14 @@ function snapshot() {
       name: item.gift.name
     })),
     shown: state.shownTop.map((id) => giftById(id).name),
-    picked: picked ? { name: picked.name, note: picked.note } : null,
+    picked: picked
+      ? {
+          /* 「果物 → シャインマスカット」のように、大分類と具体名を1つにまとめる */
+          name: state.finalItem ? `${picked.name} → ${state.finalItem.name}` : picked.name,
+          note: state.finalItem ? state.finalItem.note : picked.note
+        }
+      : null,
+    refinements: state.refinePath,
     message: state.message.trim()
   };
 }
@@ -316,8 +328,10 @@ function renderResult() {
       reasons.length ? `→ ${reasons.join('・')} だから` : '';
     card.addEventListener('click', () => {
       state.finalPick = item.gift.id;
-      report();
-      renderSend();
+      state.refineStack = [];
+      state.refinePath = [];
+      state.finalItem = null;
+      startRefine();
     });
     list.appendChild(card);
   });
@@ -330,6 +344,69 @@ function renderResult() {
 function showMore() {
   state.offset += 3;
   renderResult();
+}
+
+/* ---------- 深掘り（第2段階） ---------- */
+
+/*
+ * 「果物」まで決まったら、次は「桃」まで聞く。
+ * 深掘りの質問が用意されていない品は、ここを素通りして送信画面へ。
+ */
+function startRefine() {
+  const tree = REFINEMENTS[state.finalPick];
+  if (!tree) {
+    report();
+    renderSend();
+    return;
+  }
+  state.refineStack = [tree];
+  renderRefine();
+}
+
+function renderRefine() {
+  const node = state.refineStack[state.refineStack.length - 1];
+  const gift = giftById(state.finalPick);
+
+  $('#refine-eyebrow').textContent = `${gift.emoji} ${gift.name}`;
+  $('#refine-question').textContent = node.question;
+
+  const list = $('#refine-choices');
+  list.innerHTML = '';
+  node.choices.forEach((choice) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'choice';
+    button.innerHTML = '<span class="choice-emoji"></span><span class="choice-label"></span>';
+    button.querySelector('.choice-emoji').textContent = choice.emoji;
+    button.querySelector('.choice-label').textContent = choice.label;
+    button.addEventListener('click', () => {
+      state.refinePath.push({ question: node.question, answer: choice.label });
+      if (choice.next) {
+        state.refineStack.push(choice.next);
+        renderRefine();
+        report();
+        return;
+      }
+      state.finalItem = { name: choice.name, note: choice.note };
+      report();
+      renderSend();
+    });
+    list.appendChild(button);
+  });
+
+  $('#refine-back').hidden = false;
+  renderStatus(Transport.status());
+  showScreen('refine');
+}
+
+function refineBack() {
+  state.refinePath.pop();
+  state.refineStack.pop();
+  if (state.refineStack.length === 0) {
+    renderResult();
+    return;
+  }
+  renderRefine();
 }
 
 /* ---------- 送信画面 ---------- */
@@ -354,6 +431,8 @@ function buildResultUrl() {
     a: state.answers.map((ans) => [ans.qid, ans.ci]),
     p: state.finalPick,
     t: state.shownTop,
+    d: state.finalItem,
+    rf: state.refinePath.map((step) => [step.question, step.answer]),
     m: state.message.slice(0, 400)
   };
   const base = location.origin + location.pathname;
@@ -365,8 +444,9 @@ function buildResultText() {
   const lines = [
     '🎂 お母さんの「ほしいものクイズ」の結果です',
     '',
-    `▼ えらんだのは：${gift.emoji} ${gift.name}`
+    `▼ えらんだのは：${gift.emoji} ${state.finalItem ? state.finalItem.name : gift.name}`
   ];
+  if (state.finalItem) lines.push(`　 （${gift.name}）`);
   if (state.message.trim()) {
     lines.push('', `▼ ひとこと：${state.message.trim()}`);
   }
@@ -385,7 +465,9 @@ function refreshShareLinks() {
 function renderSend() {
   const gift = giftById(state.finalPick);
   $('#picked-emoji').textContent = gift.emoji;
-  $('#picked-name').textContent = gift.name;
+  $('#picked-name').textContent = state.finalItem ? state.finalItem.name : gift.name;
+  $('#picked-category').textContent = state.finalItem ? gift.name : '';
+  $('#picked-category').hidden = !state.finalItem;
   $('#copy-status').textContent = '';
   refreshShareLinks();
   renderStatus(Transport.status());
@@ -416,9 +498,12 @@ function renderReceived(payload) {
   const gift = giftById(payload.p);
   const scores = tagScores(answers);
 
+  const detail = payload.d && typeof payload.d === 'object' ? payload.d : null;
   $('#received-emoji').textContent = gift ? gift.emoji : '🎁';
-  $('#received-name').textContent = gift ? gift.name : '（選択なし）';
-  $('#received-note').textContent = gift ? gift.note : '';
+  $('#received-name').textContent = detail ? detail.name : (gift ? gift.name : '（選択なし）');
+  $('#received-category').textContent = detail && gift ? gift.name : '';
+  $('#received-category').hidden = !(detail && gift);
+  $('#received-note').textContent = detail ? detail.note : (gift ? gift.note : '');
 
   const messageBox = $('#received-message');
   messageBox.hidden = !payload.m;
@@ -435,14 +520,20 @@ function renderReceived(payload) {
 
   const answerList = $('#received-answers');
   answerList.innerHTML = '';
+  const addRow = (question, answer) => {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="qa-q"></span><span class="qa-a"></span>';
+    li.querySelector('.qa-q').textContent = question;
+    li.querySelector('.qa-a').textContent = answer;
+    answerList.appendChild(li);
+  };
   answers.forEach((ans) => {
     const question = questionById(ans.qid);
     const choice = question.choices[ans.ci];
-    const li = document.createElement('li');
-    li.innerHTML = '<span class="qa-q"></span><span class="qa-a"></span>';
-    li.querySelector('.qa-q').textContent = question.text;
-    li.querySelector('.qa-a').textContent = `${choice.emoji} ${choice.label}`;
-    answerList.appendChild(li);
+    addRow(question.text, `${choice.emoji} ${choice.label}`);
+  });
+  (payload.rf || []).forEach(([question, answer]) => {
+    if (typeof question === 'string' && typeof answer === 'string') addRow(question, answer);
   });
 
   const topTags = Object.keys(scores)
@@ -471,6 +562,9 @@ function start(fresh) {
     save();
   }
   state.finalPick = null;
+  state.refineStack = [];
+  state.refinePath = [];
+  state.finalItem = null;
   state.offset = 0;
   state.message = '';
   $('#message-input').value = '';
@@ -483,7 +577,15 @@ function init() {
   $('#back-button').addEventListener('click', goBack);
   $('#more-button').addEventListener('click', showMore);
   $('#retry-button').addEventListener('click', () => start(true));
-  $('#send-back-button').addEventListener('click', renderResult);
+  $('#send-back-button').addEventListener('click', () => {
+    if (REFINEMENTS[state.finalPick]) {
+      state.refinePath = [];
+      startRefine();
+    } else {
+      renderResult();
+    }
+  });
+  $('#refine-back').addEventListener('click', refineBack);
   $('#copy-button').addEventListener('click', copyResult);
   $('#message-input').addEventListener('input', (event) => {
     state.message = event.target.value;

@@ -127,6 +127,7 @@ h3 {
 }
 
 .lead { margin: 0; color: var(--ink-soft); font-size: 1rem; text-wrap: pretty; }
+.eyebrow--left { text-align: left; letter-spacing: 0.15em; text-indent: 0; }
 .fine { margin: 0; color: var(--ink-soft); font-size: 0.85rem; }
 
 /* ---------- ボタン ---------- */
@@ -303,6 +304,12 @@ h3 {
 }
 .picked-emoji { font-size: 2.6rem; line-height: 1; }
 .picked-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.picked-category {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--kanreki);
+}
 .picked-name { font-size: 1.15rem; font-weight: 700; line-height: 1.5; }
 .picked-note { font-size: 0.9rem; color: var(--ink-soft); }
 
