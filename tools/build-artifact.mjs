@@ -5,6 +5,11 @@
  * こちらは <title> から中身だけを書き出す。外部ファイルも読めないので全部埋めこむ。
  *
  *   node tools/build-artifact.mjs
+ *
+ * 注意: 送信先の設定は、手元の assets/config.js ではなく必ず
+ * assets/config.example.js（空の値）を埋めこむ。artifact/index.html は
+ * リポジトリに入るので、実際のURLを混ぜるとそこから漏れる。
+ * Artifact 上では db を使うので、URLは要らない。
  */
 
 import fs from 'node:fs/promises';
@@ -22,7 +27,7 @@ const body = html.match(/<body>([\s\S]*?)<script/)[1].trim();
 
 const css = await read('assets/style.css');
 const scripts = [];
-for (const file of ['assets/config.js', 'assets/data.js', 'assets/transport.js', 'assets/app.js']) {
+for (const file of ['assets/config.example.js', 'assets/data.js', 'assets/transport.js', 'assets/app.js']) {
   scripts.push(`<script>\n/* ${file} */\n${await read(file)}\n</script>`);
 }
 

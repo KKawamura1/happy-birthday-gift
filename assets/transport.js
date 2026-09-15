@@ -36,14 +36,16 @@ const Transport = (() => {
 
   /* --- 送り先その2: Google Apps Script などの URL --- */
   function httpBackend(url) {
+    const token = typeof REPORT_TOKEN === 'string' ? REPORT_TOKEN : '';
     return async (snapshot) => {
-      const body = JSON.stringify(snapshot);
+      const body = JSON.stringify(token ? { ...snapshot, token } : snapshot);
       /*
        * Apps Script は CORS のプリフライトを返さないので、
        * text/plain で投げて「単純リクエスト」にする。
        * sendBeacon が使えるときは、画面を閉じられても届く可能性が上がる。
        */
-      if (REPORT_MODE === 'beacon' && navigator.sendBeacon) {
+      const mode = typeof REPORT_MODE === 'string' ? REPORT_MODE : 'beacon';
+      if (mode === 'beacon' && navigator.sendBeacon) {
         const ok = navigator.sendBeacon(url, new Blob([body], { type: 'text/plain;charset=UTF-8' }));
         if (ok) return;
       }

@@ -513,20 +513,35 @@ textarea {
 </main>
 
 <script>
-/* assets/config.js */
+/* assets/config.example.js */
 /*
- * config.js — 送信先の設定
+ * config.example.js — 送信先の設定のひな型
  *
- * ここに Google Apps Script の URL を貼ると、母が選択肢を押すたびに、
- * その時点の回答一式が自動で送られます（母が「送信」を押す必要はありません）。
+ * このファイルは git に入りますが、URL を書いてはいけません。
+ * 実際の値が入る assets/config.js は .gitignore で除外してあります。
  *
- * URL の取り方は README の「自動送信の設定」を見てください。
- * 空のままでも動きますが、その場合は最後に本人が「LINEで送る」を押す必要があります。
+ * ■ 手元で動かすとき
+ *     cp assets/config.example.js assets/config.js
+ *   としてから、コピーしたほうの config.js に値を書いてください。
+ *
+ * ■ GitHub Pages に出すとき
+ *   リポジトリの Settings → Secrets and variables → Actions に
+ *   REPORT_ENDPOINT と REPORT_TOKEN を登録してください。
+ *   公開時に .github/workflows/pages.yml が config.js を組み立てます。
+ *
+ * ※ どちらの値も、公開されたページのソースを見れば読めます。秘密にはできません。
+ *   git に載せないのは、履歴に残さないため・すぐ差し替えられるようにするためです。
+ *   本当の防御は受け口（tools/apps-script.gs）側にあります。
  */
+
+/* Apps Script のウェブアプリURL。空なら「LINEで送る」方式に切り替わります */
 const REPORT_ENDPOINT = '';
 
-/* 送信先が Apps Script かどうかの目印。ふつうは触らなくて大丈夫です */
-const REPORT_MODE = 'beacon';   // 'beacon' か 'fetch'
+/* 受け口と揃える合言葉。通りすがりの機械が叩くのを弾くためのもの */
+const REPORT_TOKEN = '';
+
+/* 送信のしかた。'beacon' は画面を閉じられても届きやすい */
+const REPORT_MODE = 'beacon';
 
 </script>
 <script>
@@ -901,14 +916,16 @@ const Transport = (() => {
 
   /* --- 送り先その2: Google Apps Script などの URL --- */
   function httpBackend(url) {
+    const token = typeof REPORT_TOKEN === 'string' ? REPORT_TOKEN : '';
     return async (snapshot) => {
-      const body = JSON.stringify(snapshot);
+      const body = JSON.stringify(token ? { ...snapshot, token } : snapshot);
       /*
        * Apps Script は CORS のプリフライトを返さないので、
        * text/plain で投げて「単純リクエスト」にする。
        * sendBeacon が使えるときは、画面を閉じられても届く可能性が上がる。
        */
-      if (REPORT_MODE === 'beacon' && navigator.sendBeacon) {
+      const mode = typeof REPORT_MODE === 'string' ? REPORT_MODE : 'beacon';
+      if (mode === 'beacon' && navigator.sendBeacon) {
         const ok = navigator.sendBeacon(url, new Blob([body], { type: 'text/plain;charset=UTF-8' }));
         if (ok) return;
       }

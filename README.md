@@ -27,42 +27,99 @@
 
 ## 公開のしかた（GitHub Pages）
 
-1. GitHub のリポジトリ → **Settings** → **Pages**
-2. **Source** を `Deploy from a branch` にする
-3. Branch に公開したいブランチ（`main` など）、フォルダは `/ (root)` を選んで **Save**
-4. 数分待つと `https://<ユーザー名>.github.io/happy-birthday-gift/` で開けます
+自動送信を使うので、**GitHub Actions 方式**で公開します
+（送信先のURLを git に置かず、公開時に差しこむため）。
 
-GitHub Actions で公開したい場合は `.github/workflows/pages.yml` を用意してあります。
-Settings → Pages の **Source** を `GitHub Actions` にすると、`main` への push で自動的に公開されます。
-別のブランチを試しに公開したいときは、Actions タブから **Deploy to GitHub Pages** を
-手動実行（Run workflow）してください。
+1. GitHub のリポジトリ → **Settings** → **Pages**
+2. **Source** を `GitHub Actions` にする
+3. `main` に push すると `.github/workflows/pages.yml` が動き、
+   `https://<ユーザー名>.github.io/happy-birthday-gift/` で開けるようになります
+
+別のブランチを試しに公開したいときは、Actions タブから
+**Deploy to GitHub Pages** を手動実行（Run workflow）してください。
+
+`Deploy from a branch` でも公開はできますが、その方式だと送信先の設定が
+差しこまれないので、自動送信は無効（手動送信に切り替わり）になります。
 
 ## 自動送信の設定
 
 回答の受け口として Google スプレッドシートを使います。無料で、サーバーを借りる必要がありません。
 
+### 1. 受け口をつくる
+
 1. [Google スプレッドシート](https://sheets.new)で新しいシートを1つ作る
 2. メニューの **拡張機能 → Apps Script** を開く
-3. 出てきたエディタの中身を全部消して、`tools/apps-script.gs` の中身を貼りつける
-4. 先頭のほうにある `NOTIFY_EMAIL` に、自分のメールアドレスを書く
-   （空のままにするとメール通知はなく、シートに貯まるだけになります）
+3. エディタの中身を全部消して、`tools/apps-script.gs` の中身を貼りつける
+4. 先頭のほうの3つを埋める
+   - `SHARED_TOKEN` … 好きな文字列（合言葉）。あとで GitHub 側にも同じものを入れます
+   - `NOTIFY_EMAIL` … 自分のメールアドレス。空ならシートに貯まるだけになります
 5. 右上の **デプロイ → 新しいデプロイ** → 種類は **ウェブアプリ**
    - 次のユーザーとして実行： **自分**
    - アクセスできるユーザー： **全員**  ← ここが「全員」でないと母の端末から送れません
-6. 表示された **ウェブアプリのURL**（`https://script.google.com/macros/s/..../exec`）をコピー
-7. `assets/config.js` を開いて貼りつける
+6. 表示された **ウェブアプリのURL**（`https://script.google.com/macros/s/..../exec`）をひかえる
 
-   ```js
-   const REPORT_ENDPOINT = 'https://script.google.com/macros/s/..../exec';
-   ```
+URLをブラウザでそのまま開いて「ほしいものクイズの受け口は動いています」と出れば、受け口は生きています。
 
-8. コミットして push。GitHub Pages に反映されれば設定完了です
+### 2. URLを GitHub Secrets に入れる
 
-うまくいったかどうかは、ウェブアプリのURLをブラウザでそのまま開くと確かめられます。
-「ほしいものクイズの受け口は動いています」と出れば、受け口は生きています。
+**URL と合言葉はリポジトリに書かないでください。** `assets/config.js` は `.gitignore` で
+除外してあり、公開時に GitHub Actions が Secrets から組み立てます。
+
+1. リポジトリの **Settings → Secrets and variables → Actions → New repository secret**
+2. `REPORT_ENDPOINT` … さきほどのウェブアプリのURL
+3. `REPORT_TOKEN` … Apps Script に書いた `SHARED_TOKEN` と同じ文字列
+4. **Settings → Pages → Source** を `GitHub Actions` にする
+
+以降、`main` に push すると公開され、そのときだけ config.js が組み立てられます。
+
+手元で動かすときは、ひな型をコピーして使ってください（コピー先は git に入りません）。
+
+```bash
+cp assets/config.example.js assets/config.js
+```
 
 `REPORT_ENDPOINT` が空のままでも、アプリは普通に動きます。
 その場合だけ、最後に本人が「LINEで送る」を押す方式に自動で切り替わります。
+
+## セキュリティについて
+
+**このURLは秘密にできません。** クライアントだけで動く静的サイトなので、
+公開ページのソースを見れば誰でも読めます。リポジトリが public かどうかは主因ではなく、
+ページを公開した時点で受け口も公開されます。Secrets に置くのは、
+**git の履歴に残さない**ため・**すぐ差し替えられる**ようにするためです。
+
+### このURLで何ができて、何ができないか
+
+| | |
+| --- | --- |
+| ❌ できない | シートを読むこと（`doGet` は固定の文字列を返すだけ） |
+| ❌ できない | Google アカウントの他のデータに触れること（動くのは `doPost`/`doGet` だけ） |
+| ❌ できない | 母の回答を書き換えること（セッションIDはランダムなUUIDで、当てられません） |
+| ⚠️ できる | 知らない人がシートに行を足すこと |
+| ⚠️ できる | あなた宛にメールを飛ばすこと |
+
+⚠️ のほうは `tools/apps-script.gs` 側で抑えてあります。
+
+- 合言葉が合わないPOSTは捨てる（通りすがりの機械よけ。認証ではありません）
+- 本文の長さ・項目の長さ・配列の個数を、すべて上限で切る
+- 1回答者あたり60回/15分、全体で600回/時 を超えたら受け取らない
+- 新しく作れる行数は300まで。それ以上は増やせない
+- `=` `+` `-` `@` で始まる文字列を無害化する
+  （これを抜かすと `=IMPORTXML(...)` のような文字列がシート上で**数式として実行されます**）
+- メールは1日20通まで。本文も切り詰め、注意書きを添える
+- 何を弾いたかは返さない
+
+これらは `test/apps-script.test.mjs` で、実際に敵対的なデータを投げて確認しています。
+
+### 気になる場合の選択肢
+
+- **専用の Google アカウントを作る** … 母の回答しか入らないアカウントにすれば、
+  何かあっても他に影響しません
+- **リポジトリを private に戻す** … GitHub Pages を private リポジトリから公開するには
+  有料プラン（Pro 以上）が必要です。無料プランなら public にする必要があります
+- **おかしなデータが入ったら** … Apps Script のデプロイを削除すればURLは即座に死にます。
+  作り直して Secrets を差し替えてください。母には新しいURLを送り直す必要はありません
+  （ページのURLは変わらないため）
 
 ## 手元で試す
 
@@ -82,10 +139,11 @@ npx http-server -p 8000 .
 | `assets/data.js` | **質問16問とプレゼント候補30件のデータ**。書き換えるならここ |
 | `assets/app.js` | 次の質問を選ぶエンジンと画面の制御 |
 | `assets/transport.js` | 押すたびに送る部分 |
-| `assets/config.js` | 送信先のURL |
+| `assets/config.example.js` | 送信先設定のひな型（実物の `config.js` は git に入りません） |
 | `tools/apps-script.gs` | Google スプレッドシート側に貼るコード |
 | `tools/build-artifact.mjs` | 全部を1枚のHTMLにまとめる（Claude の Artifact 用） |
-| `test/e2e.mjs` | 通しテスト |
+| `test/e2e.mjs` | ブラウザでの通しテスト |
+| `test/apps-script.test.mjs` | 受け口の検査・無害化のテスト |
 
 ## しくみ
 
@@ -140,7 +198,7 @@ npx http-server -p 8000 .
 
 ## プライバシー
 
-- 送り先は `assets/config.js` に書いた自分のスプレッドシートだけです
+- 送り先は、自分で設定したスプレッドシートだけです
 - 途中まで答えた内容は端末の `localStorage` にも保存され、「前回のつづきから」で再開できます
 - 「押すたびに息子に届く」ことは、最初の画面に書いてあります（黙って送ってはいません）
 
@@ -153,4 +211,11 @@ npx http-server -p 8000 .
 ```bash
 npm install -D playwright && npx playwright install chromium   # 初回のみ
 node test/e2e.mjs
+```
+
+受け口のほうは、敵対的なデータ（数式インジェクション、巨大な本文、壊れたJSON、
+連投、行数の水増し）を投げて弾かれることを確かめます。こちらは Playwright 不要です。
+
+```bash
+node test/apps-script.test.mjs
 ```
