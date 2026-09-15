@@ -1,0 +1,272 @@
+/* 60歳の母が、スマホで迷わず押せることを最優先にした見た目 */
+
+:root {
+  color-scheme: light;
+  --bg: #fff7f0;
+  --card: #ffffff;
+  --ink: #33261f;
+  --ink-soft: #7a6558;
+  --line: #f0dfd2;
+  --accent: #e2606a;
+  --accent-dark: #c74a56;
+  --accent-soft: #fdeaec;
+  --line-green: #06c755;
+  --radius: 18px;
+  --pad-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #211a17;
+    --card: #2d2320;
+    --ink: #f5e9e1;
+    --ink-soft: #c0aa9c;
+    --line: #443430;
+    --accent: #ef7b84;
+    --accent-dark: #d8636d;
+    --accent-soft: #3d2a2c;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Hiragino Maru Gothic ProN", "ヒラギノ丸ゴ ProN", "Hiragino Sans",
+               "Yu Gothic", "Meiryo", system-ui, sans-serif;
+  font-size: 18px;
+  line-height: 1.8;
+  -webkit-text-size-adjust: 100%;
+}
+
+.wrap {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 24px 18px calc(48px + var(--pad-bottom));
+}
+
+[hidden] { display: none !important; }
+
+h1 { font-size: 1.6rem; line-height: 1.5; margin: 0 0 18px; }
+h2 { font-size: 1.35rem; line-height: 1.6; margin: 0 0 12px; }
+h3 { font-size: 1.05rem; margin: 28px 0 10px; }
+
+/* ---------- はじめの画面 ---------- */
+
+.hero { text-align: center; padding: 20px 4px; }
+.hero-emoji { font-size: 4.5rem; line-height: 1; margin-bottom: 8px; }
+.lead { color: var(--ink-soft); margin: 0 0 20px; font-size: 1rem; }
+.fine { color: var(--ink-soft); font-size: 0.85rem; margin-top: 18px; }
+
+/* ---------- ボタン ---------- */
+
+.primary, .secondary, .ghost {
+  display: block;
+  width: 100%;
+  min-height: 62px;
+  margin: 12px 0 0;
+  padding: 16px 20px;
+  border: none;
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 0 var(--accent-dark);
+}
+.primary:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--accent-dark); }
+.primary--line { background: var(--line-green); box-shadow: 0 4px 0 #04a446; }
+.primary--line:active { box-shadow: 0 2px 0 #04a446; }
+
+.secondary {
+  background: var(--card);
+  color: var(--ink);
+  border: 2px solid var(--line);
+}
+
+.ghost {
+  background: none;
+  color: var(--ink-soft);
+  font-weight: 400;
+  min-height: 48px;
+  text-decoration: underline;
+}
+
+/* ---------- 質問画面 ---------- */
+
+.progress { margin-bottom: 22px; }
+.progress-track {
+  height: 10px;
+  background: var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  width: 6%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.progress-text {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  text-align: right;
+}
+
+.question { font-size: 1.4rem; margin-bottom: 6px; }
+.question-sub { color: var(--ink-soft); font-size: 0.9rem; margin: 0 0 12px; }
+
+.choices { display: flex; flex-direction: column; gap: 14px; margin-top: 20px; }
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 84px;
+  padding: 18px 20px;
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+.choice:hover { border-color: var(--accent); }
+.choice:active { transform: scale(0.98); }
+.choice-emoji { font-size: 2.1rem; line-height: 1; flex: 0 0 auto; }
+.choice-label { font-size: 1.1rem; font-weight: 700; line-height: 1.6; }
+
+/* ---------- 結果画面 ---------- */
+
+.result-title { text-align: center; }
+.result-lead { text-align: center; color: var(--ink-soft); font-size: 0.95rem; margin: 0 0 22px; }
+
+.result-list { display: flex; flex-direction: column; gap: 16px; }
+
+.gift-card {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 8px 16px;
+  width: 100%;
+  padding: 20px;
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.gift-card--first { border-color: var(--accent); background: var(--accent-soft); }
+.gift-rank {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+.gift-emoji { font-size: 2.6rem; line-height: 1.2; }
+.gift-body { min-width: 0; }
+.gift-name { font-size: 1.15rem; margin: 0 0 6px; }
+.gift-note { font-size: 0.92rem; color: var(--ink-soft); margin: 0 0 8px; line-height: 1.7; }
+.gift-budget { font-size: 0.88rem; margin: 0; font-weight: 700; }
+.gift-reason { font-size: 0.85rem; color: var(--ink-soft); margin: 6px 0 0; }
+.gift-pick {
+  grid-column: 1 / -1;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  text-align: right;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* ---------- 送る画面 / 受け取る画面 ---------- */
+
+.picked {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: var(--accent-soft);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+  margin-bottom: 22px;
+}
+.picked--big { flex-wrap: wrap; }
+.picked-emoji { font-size: 2.8rem; line-height: 1; }
+.picked-name { font-size: 1.2rem; font-weight: 700; line-height: 1.5; }
+.picked-budget { font-size: 0.9rem; color: var(--ink-soft); }
+.picked-note { font-size: 0.9rem; color: var(--ink-soft); margin-top: 6px; }
+
+.field { display: block; margin-bottom: 20px; }
+.field-label { display: block; font-size: 0.95rem; font-weight: 700; margin-bottom: 8px; }
+
+textarea {
+  width: 100%;
+  padding: 14px;
+  background: var(--card);
+  color: inherit;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  font: inherit;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.send-buttons { display: flex; flex-direction: column; }
+.copy-status { min-height: 1.8em; font-size: 0.9rem; color: var(--accent-dark); margin: 12px 0 0; }
+.fallback { margin-top: 8px; font-size: 0.85rem; }
+
+.message-card {
+  padding: 18px 20px;
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+.message-label { font-size: 0.8rem; font-weight: 700; color: var(--ink-soft); margin-bottom: 6px; }
+.message-card p { margin: 0; white-space: pre-wrap; }
+
+.sub-title { border-bottom: 2px solid var(--line); padding-bottom: 6px; }
+
+.plain-list { margin: 0; padding-left: 1.2em; }
+.plain-list li { margin-bottom: 6px; }
+
+.tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag {
+  padding: 6px 14px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.qa-list { list-style: none; margin: 0; padding: 0; }
+.qa-list li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.qa-q { display: block; font-size: 0.85rem; color: var(--ink-soft); }
+.qa-a { display: block; font-weight: 700; }
+
+@media (min-width: 520px) {
+  body { font-size: 19px; }
+  h1 { font-size: 1.9rem; }
+}
