@@ -3,8 +3,11 @@
  *
  * 考え方:
  *   - プレゼント候補(GIFTS)にはそれぞれ「タグ」がついている
- *   - 質問の選択肢(CHOICES)は、タグに点数を足したり引いたりする
+ *   - 質問の選択肢の tags は、そのタグに点数を足したり引いたりする
  *   - 全部の質問を出すのではなく、いま候補がいちばん割れる質問を選んで出す(app.js)
+ *
+ * 金額はどこにも出さない。値段を見せると遠慮が入ってしまい、
+ * 「本当に欲しいもの」ではなく「安いもの」が選ばれてしまうため。
  */
 
 /* タグの日本語ラベル。結果画面の「なぜこれ？」に使う */
@@ -13,9 +16,9 @@ const TAG_LABELS = {
   sweets: '甘いもの好き',
   savory: 'しょっぱいもの派',
   fruit: '果物好き',
-  tea: 'お茶・コーヒー好き',
+  tea: 'お茶好き',
+  drink: '毎日の一杯',
   alcohol: 'お酒好き',
-  drink: '飲みもの',
   consumable: 'なくなるものがいい',
   keepsake: 'ずっと残るもの',
   practical: '毎日つかえるもの',
@@ -23,6 +26,8 @@ const TAG_LABELS = {
   appliance: '家電',
   kitchen: '台所しごと',
   cleaning: '掃除・洗濯',
+  gadget: 'デジタルもの',
+  tech_ok: '機械もへっちゃら',
   relax: 'のんびりしたい',
   sleep: 'よく眠りたい',
   warm: '冷え対策',
@@ -40,179 +45,238 @@ const TAG_LABELS = {
   travel: '旅行',
   dining: '外でおいしいごはん',
   culture: '舞台・美術',
+  music: '音楽',
+  movie: '映画・ドラマ',
   outing: 'お出かけ好き',
+  active: 'アクティブ',
   hobby: '趣味の時間',
   garden: '花・園芸',
-  craft: '手芸',
+  craft: '手を動かすこと',
   book: '読書',
+  learning: '新しいことを習う',
   photo: '写真',
   family: '家族',
   together: '誰かと一緒に',
-  tech_ok: '機械もへっちゃら',
-  gadget: 'デジタルもの',
   home: 'おうち時間',
-  active: 'アクティブ',
-  budget_low: '気を遣わない価格',
-  budget_mid: 'ほどよい価格',
-  budget_high: '節目の贈りもの'
+  pet: '生きものの世話'
 };
 
 /* プレゼント候補 */
 const GIFTS = [
+  /* ── 食べもの・飲みもの ── */
   { id: 'sweets_set', emoji: '🍰', name: 'お取り寄せスイーツの詰め合わせ',
-    budget: '3,000〜8,000円',
     note: '有名店のケーキやどら焼きを、冷凍便でおうちに。ひとつずつ食べる楽しみが続きます。',
-    tags: ['food','sweets','consumable','budget_low','home'] },
+    tags: ['food', 'sweets', 'consumable', 'home'] },
 
   { id: 'fruit', emoji: '🍑', name: '旬の高級フルーツ',
-    budget: '5,000〜12,000円',
     note: 'シャインマスカット、桃、いちごなど。季節ごとに届く定期便にもできます。',
-    tags: ['food','fruit','consumable','budget_mid','luxury'] },
+    tags: ['food', 'fruit', 'consumable', 'luxury'] },
 
   { id: 'gourmet', emoji: '🦀', name: 'ご当地グルメ・海鮮セット',
-    budget: '5,000〜15,000円',
     note: 'かに、うなぎ、明太子、干物など。ちょっといい晩ごはんが何回か。',
-    tags: ['food','savory','consumable','budget_mid'] },
+    tags: ['food', 'savory', 'consumable'] },
 
-  { id: 'tea', emoji: '🍵', name: 'お茶・コーヒーの定期便',
-    budget: '月 2,000〜4,000円',
-    note: '毎月ちがう茶葉や豆が届きます。毎日の一杯がちょっと特別に。',
-    tags: ['food','tea','drink','consumable','budget_low','home'] },
+  { id: 'tea_sub', emoji: '🍵', name: '日本茶の定期便',
+    note: '毎月ちがう産地の茶葉が届きます。急須で淹れる時間ごと贈るようなものです。',
+    tags: ['food', 'tea', 'drink', 'consumable', 'home'] },
+
+  { id: 'coffee_beans', emoji: '☕', name: 'コーヒー豆の定期便',
+    note: '焙煎したてが毎月。浅煎りから深煎りまで、好みを探す楽しみつき。',
+    tags: ['food', 'drink', 'consumable', 'home'] },
 
   { id: 'sake', emoji: '🍶', name: '日本酒・ワインの飲みくらべセット',
-    budget: '5,000〜12,000円',
     note: '小瓶が何本か入ったセットなら、飲みきりやすくて選ぶ楽しみも。',
-    tags: ['food','alcohol','consumable','budget_mid'] },
+    tags: ['food', 'alcohol', 'consumable'] },
 
-  { id: 'coffee_maker', emoji: '☕', name: '全自動コーヒーメーカー／上質な電気ケトル',
-    budget: '8,000〜30,000円',
+  { id: 'rice', emoji: '🍚', name: 'おいしいお米の定期便',
+    note: '毎日食べるものだからこそ効きます。銘柄を変えながら届けられます。',
+    tags: ['food', 'savory', 'consumable', 'kitchen', 'practical'] },
+
+  /* ── 家電・台所 ── */
+  { id: 'coffee_maker', emoji: '⚡', name: '全自動コーヒーメーカー／上質な電気ケトル',
     note: 'ボタンひとつで挽きたての一杯。毎朝ちょっと嬉しくなる家電です。',
-    tags: ['appliance','kitchen','drink','practical','tech_ok','budget_mid','home'] },
+    tags: ['appliance', 'kitchen', 'drink', 'practical', 'tech_ok', 'home'] },
 
   { id: 'cook_pot', emoji: '🍲', name: '自動調理鍋・ホットプレート',
-    budget: '15,000〜50,000円',
     note: '材料を入れてほっとくだけ。台所に立つ時間がぐっとラクになります。',
-    tags: ['appliance','kitchen','practical','tech_ok','budget_mid'] },
+    tags: ['appliance', 'kitchen', 'practical', 'tech_ok'] },
 
   { id: 'robot_cleaner', emoji: '🤖', name: 'ロボット掃除機',
-    budget: '30,000〜80,000円',
     note: '留守のあいだに掃除が終わっています。腰をかがめる回数が減ります。',
-    tags: ['appliance','cleaning','practical','tech_ok','budget_high'] },
+    tags: ['appliance', 'cleaning', 'practical', 'tech_ok'] },
 
   { id: 'futon_dryer', emoji: '🛏️', name: '布団乾燥機',
-    budget: '10,000〜25,000円',
     note: '寝る前に30分でぽかぽかの布団に。梅雨どきも冬もうれしい一台。',
-    tags: ['appliance','cleaning','sleep','warm','practical','budget_mid'] },
+    tags: ['appliance', 'cleaning', 'sleep', 'warm', 'practical'] },
 
-  { id: 'hair_dryer', emoji: '💨', name: '高級ドライヤー',
-    budget: '20,000〜50,000円',
-    note: '自分ではなかなか買わない価格帯。乾かすだけで髪がつやっとします。',
-    tags: ['beauty','appliance','luxury','practical','budget_high'] },
+  { id: 'humidifier', emoji: '💨', name: '加湿器・空気清浄機',
+    note: '喉と肌のために。つけっぱなしでいいので、機械が苦手でも困りません。',
+    tags: ['appliance', 'health', 'practical', 'home', 'tech_ok'] },
+
+  { id: 'hot_carpet', emoji: '🔥', name: 'ホットカーペット・電気毛布',
+    note: '足もとから温めるのがいちばん効きます。冬のあいだ毎日使うもの。',
+    tags: ['appliance', 'warm', 'relax', 'home', 'sleep', 'practical'] },
+
+  { id: 'knife', emoji: '🔪', name: 'よく切れる包丁とまな板',
+    note: '研ぎ直しながら何十年も使えます。切れ味が変わると料理が軽くなります。',
+    tags: ['kitchen', 'practical', 'keepsake', 'craft'] },
+
+  { id: 'tableware', emoji: '🍵', name: '夫婦の器・湯呑み',
+    note: '毎日の食卓に出てくるもの。名前を入れられる窯元もあります。',
+    tags: ['kitchen', 'keepsake', 'home', 'together'] },
+
+  /* ── 美容・くつろぎ ── */
+  { id: 'hair_dryer', emoji: '💇', name: '高級ドライヤー',
+    note: '自分ではなかなか買わないもの。乾かすだけで髪がつやっとします。',
+    tags: ['beauty', 'appliance', 'luxury', 'practical'] },
 
   { id: 'massager', emoji: '💆', name: 'マッサージクッション／マッサージガン',
-    budget: '6,000〜30,000円',
     note: 'テレビを見ながら肩や腰に。押すボタンはひとつだけのものが人気です。',
-    tags: ['appliance','massage','relax','health','home','budget_mid'] },
-
-  { id: 'pajama', emoji: '🧸', name: '上質なパジャマ・ルームウェア',
-    budget: '8,000〜20,000円',
-    note: 'シルクやガーゼの肌ざわり。家にいる時間がいちばん長い服だからこそ。',
-    tags: ['roomwear','fashion','relax','warm','sleep','home','budget_mid'] },
-
-  { id: 'towel', emoji: '🛁', name: '今治タオル・バスローブのセット',
-    budget: '5,000〜15,000円',
-    note: '毎日ふれるものを、ちょっといいものに。何枚あっても困りません。',
-    tags: ['towel','bath','relax','practical','budget_low'] },
-
-  { id: 'bedding', emoji: '😴', name: 'オーダー枕・羽毛布団などの寝具',
-    budget: '20,000〜60,000円',
-    note: '人生の1/3は寝ている時間。合う枕に変えると朝がちがいます。',
-    tags: ['sleep','towel','relax','practical','warm','budget_high'] },
-
-  { id: 'bath_gift', emoji: '🧴', name: '入浴剤・バスグッズの詰め合わせ',
-    budget: '3,000〜8,000円',
-    note: '毎晩ひとつずつ選ぶ楽しみ。香りのちがうものが入ったセットで。',
-    tags: ['bath','relax','warm','consumable','budget_low','home'] },
+    tags: ['appliance', 'massage', 'relax', 'health', 'home'] },
 
   { id: 'skincare', emoji: '✨', name: 'スキンケア・化粧品のギフトセット',
-    budget: '8,000〜25,000円',
     note: 'いつも使っているものより、ワンランク上のものを。',
-    tags: ['beauty','luxury','consumable','budget_mid'] },
+    tags: ['beauty', 'luxury', 'consumable'] },
+
+  { id: 'bath_gift', emoji: '🧴', name: '入浴剤・バスグッズの詰め合わせ',
+    note: '毎晩ひとつずつ選ぶ楽しみ。香りのちがうものが入ったセットで。',
+    tags: ['bath', 'relax', 'warm', 'consumable', 'home', 'beauty'] },
+
+  { id: 'towel', emoji: '🛁', name: '今治タオル・バスローブのセット',
+    note: '毎日ふれるものを、ちょっといいものに。何枚あっても困りません。',
+    tags: ['towel', 'bath', 'relax', 'practical'] },
+
+  { id: 'bedding', emoji: '😴', name: 'オーダー枕・羽毛布団などの寝具',
+    note: '人生の1/3は寝ている時間。合う枕に変えると朝がちがいます。',
+    tags: ['sleep', 'towel', 'relax', 'practical', 'warm'] },
+
+  { id: 'cushion', emoji: '🪑', name: '座り心地のいい椅子・座椅子',
+    note: '長く座る場所ほど体にこたえます。腰を支えてくれるものを。',
+    tags: ['relax', 'home', 'health', 'practical', 'massage'] },
+
+  /* ── 身につけるもの ── */
+  { id: 'pajama', emoji: '🧸', name: '上質なパジャマ・ルームウェア',
+    note: 'シルクやガーゼの肌ざわり。家にいる時間がいちばん長い服だからこそ。',
+    tags: ['roomwear', 'fashion', 'relax', 'warm', 'sleep', 'home'] },
 
   { id: 'jewelry', emoji: '💍', name: '真珠・誕生石のアクセサリー',
-    budget: '20,000〜80,000円',
     note: '60歳の節目に。法事やお祝いの席でずっと使えるものを選べます。',
-    tags: ['accessory','fashion','keepsake','luxury','budget_high'] },
+    tags: ['accessory', 'fashion', 'keepsake', 'luxury'] },
 
   { id: 'stole', emoji: '🧣', name: '上質なストール・スカーフ',
-    budget: '8,000〜25,000円',
     note: 'サイズを気にしなくていいのが利点。一枚あると肌寒い日に便利です。',
-    tags: ['fashion','accessory','warm','keepsake','budget_mid'] },
+    tags: ['fashion', 'accessory', 'warm', 'keepsake'] },
 
   { id: 'shoes', emoji: '👟', name: '軽くて歩きやすい靴',
-    budget: '10,000〜25,000円',
     note: '歩く時間が長い人ほど効きます。足に合うものを選べるギフト券も◎。',
-    tags: ['shoes','fashion','active','practical','health','outing','budget_mid'] },
+    tags: ['shoes', 'fashion', 'active', 'practical', 'health', 'outing'] },
 
   { id: 'bag', emoji: '👜', name: '軽い本革のお出かけバッグ',
-    budget: '20,000〜60,000円',
     note: '軽さがいちばん大事。旅行にもお出かけにも使えるサイズで。',
-    tags: ['bag','fashion','active','outing','keepsake','budget_high'] },
+    tags: ['bag', 'fashion', 'active', 'outing', 'keepsake'] },
 
+  /* ── 出かける・体験する ── */
   { id: 'onsen', emoji: '♨️', name: '温泉旅行・宿泊のギフト券',
-    budget: '20,000〜60,000円',
     note: '日程は好きなときに選べます。お友だちや父と行ってもらっても。',
-    tags: ['experience','travel','outing','luxury','relax','budget_high'] },
+    tags: ['experience', 'travel', 'outing', 'luxury', 'relax'] },
 
   { id: 'restaurant', emoji: '🍽️', name: 'レストランのお食事券',
-    budget: '10,000〜30,000円',
     note: '自分ではなかなか行かないお店へ。ふたり分にしておくと使いやすいです。',
-    tags: ['experience','dining','outing','food','budget_mid'] },
+    tags: ['experience', 'dining', 'outing', 'food', 'together'] },
 
-  { id: 'ticket', emoji: '🎭', name: '舞台・コンサート・美術展のチケット',
-    budget: '8,000〜25,000円',
+  { id: 'ticket', emoji: '🎭', name: '舞台・美術展のチケット',
     note: '好きな演目を選んでもらえます。当日はごはんもセットにすると楽しい。',
-    tags: ['experience','culture','outing','hobby','budget_mid'] },
+    tags: ['experience', 'culture', 'outing', 'hobby'] },
+
+  { id: 'concert', emoji: '🎻', name: 'コンサート・歌謡ショーのチケット',
+    note: '好きな歌手やオーケストラを生で。会場の空気ごと贈るようなものです。',
+    tags: ['experience', 'music', 'culture', 'outing'] },
+
+  { id: 'cinema_ticket', emoji: '🎬', name: '映画館の鑑賞券（回数券）',
+    note: '好きなときにふらっと行けます。ひとりでも誰とでも使えるのが利点。',
+    tags: ['experience', 'movie', 'culture', 'outing'] },
+
+  { id: 'lesson', emoji: '🏺', name: '陶芸・料理教室などの体験レッスン',
+    note: '一日だけの体験なら気軽です。作ったものが手元に残るのもいいところ。',
+    tags: ['experience', 'learning', 'hobby', 'outing', 'craft'] },
 
   { id: 'catalog', emoji: '🎁', name: '体験ギフトのカタログ',
-    budget: '10,000〜30,000円',
     note: '陶芸、クルーズ、エステ…。冊子から自分で選べるので失敗がありません。',
-    tags: ['experience','outing','hobby','budget_mid'] },
+    tags: ['experience', 'outing', 'hobby'] },
 
-  { id: 'flower', emoji: '💐', name: '花の定期便・寄せ植えセット',
-    budget: '月 1,500〜4,000円',
+  /* ── 音楽・映像 ── */
+  { id: 'music_player', emoji: '🔊', name: '音楽が聴けるスマートスピーカー',
+    note: '「◯◯をかけて」と話しかけるだけ。昔の曲も探さずに出てきます。',
+    tags: ['music', 'gadget', 'tech_ok', 'home', 'relax'] },
+
+  { id: 'subscription_video', emoji: '📺', name: '動画配信サービスの視聴券',
+    note: '昔の映画もドラマも見放題。設定はこちらで済ませてから渡せます。',
+    tags: ['movie', 'home', 'consumable', 'relax', 'gadget'] },
+
+  /* ── 趣味・学び ── */
+  { id: 'flower_sub', emoji: '💐', name: '花の定期便・寄せ植えセット',
     note: '毎月お花が届きます。「今月のが届いたよ」と連絡する口実にもなります。',
-    tags: ['garden','hobby','consumable','home','budget_low','together'] },
+    tags: ['garden', 'hobby', 'consumable', 'home', 'together'] },
 
-  { id: 'craft', emoji: '🧶', name: '手芸キット／好きな作家の本',
-    budget: '3,000〜10,000円',
-    note: 'おうち時間のおともに。読みたかった本をまとめて贈るのもおすすめ。',
-    tags: ['craft','book','hobby','home','budget_low'] },
+  { id: 'garden_tools', emoji: '🪴', name: '園芸道具・プランターの一式',
+    note: '軽くて手になじむ道具に変えるだけで、庭仕事がずいぶん楽になります。',
+    tags: ['garden', 'hobby', 'practical', 'home', 'craft'] },
 
+  { id: 'herb_kit', emoji: '🌿', name: 'ハーブ・家庭菜園のキット',
+    note: '育てて、摘んで、その日の料理に。窓辺でも始められます。',
+    tags: ['garden', 'hobby', 'kitchen', 'home', 'craft'] },
+
+  { id: 'craft_kit', emoji: '🧶', name: '手芸・編みもののキット',
+    note: 'おうち時間のおともに。できあがったら送ってもらう約束つきで。',
+    tags: ['craft', 'hobby', 'home'] },
+
+  { id: 'books', emoji: '📚', name: '好きな作家の本・全集',
+    note: '読みたかったものをまとめて。装丁のいいものは本棚に残ります。',
+    tags: ['book', 'hobby', 'home', 'keepsake'] },
+
+  { id: 'letter_set', emoji: '✒️', name: '上質な便箋と万年筆',
+    note: '手紙を書く人へ。書き味のいいペンは、書くこと自体を楽しくします。',
+    tags: ['keepsake', 'craft', 'family', 'home', 'book'] },
+
+  { id: 'online_course', emoji: '🎓', name: 'カルチャー教室・通信講座',
+    note: '書道、俳句、英会話など。同じ趣味の人と知り合うきっかけにも。',
+    tags: ['learning', 'hobby', 'home', 'culture'] },
+
+  /* ── 家族・つながり ── */
   { id: 'photo_frame', emoji: '🖼️', name: 'デジタルフォトフレーム',
-    budget: '15,000〜30,000円',
     note: '離れていても、こちらから写真を送ると自動で表示されます。設定は息子が。',
-    tags: ['photo','family','together','gadget','tech_ok','keepsake','budget_mid','home'] },
+    tags: ['photo', 'family', 'together', 'gadget', 'tech_ok', 'keepsake', 'home'] },
 
-  { id: 'photo_book', emoji: '📖', name: '家族写真のフォトブック＋手紙',
-    budget: '3,000〜8,000円',
-    note: '昔の写真と最近の写真をまとめて一冊に。値段では測れないやつです。',
-    tags: ['photo','family','together','keepsake','budget_low','home'] },
+  { id: 'photo_book', emoji: '📖', name: '家族写真のフォトブックと手紙',
+    note: '昔の写真と最近の写真をまとめて一冊に。何度でも見返せます。',
+    tags: ['photo', 'family', 'together', 'keepsake', 'home'] },
 
   { id: 'tablet', emoji: '📱', name: 'ビデオ通話用のタブレット',
-    budget: '30,000〜60,000円',
     note: '大きい画面で顔を見ながら話せます。初期設定を済ませてから送ります。',
-    tags: ['gadget','tech_ok','family','together','practical','budget_high'] },
+    tags: ['gadget', 'tech_ok', 'family', 'together', 'practical'] },
 
-  { id: 'trip_together', emoji: '🚅', name: '一緒に行く旅行（息子が帰省＋小旅行）',
-    budget: '相談して決める',
+  { id: 'trip_together', emoji: '🚅', name: '一緒に行く旅行（息子が帰省して小旅行）',
     note: 'いちばんの贈りものは時間かもしれません。日程だけ先に押さえます。',
-    tags: ['together','family','experience','travel','outing','budget_high'] }
+    tags: ['together', 'family', 'experience', 'travel', 'outing'] },
+
+  /* ── 体をいたわる ── */
+  { id: 'walking_pole', emoji: '🚶', name: 'ウォーキング用品一式',
+    note: '軽いポールや歩きやすい上着。散歩が習慣になっている人へ。',
+    tags: ['active', 'health', 'outing', 'shoes', 'practical'] },
+
+  { id: 'yoga', emoji: '🧘', name: 'ヨガ・ストレッチの道具',
+    note: 'マットとローラーがあれば、テレビを見ながらでも体をほぐせます。',
+    tags: ['health', 'active', 'home', 'relax', 'massage'] },
+
+  { id: 'pet_goods', emoji: '🐕', name: 'ペットのためのもの',
+    note: '本人にではなく、かわいがっている相手に。いちばん喜ばれることもあります。',
+    tags: ['pet', 'home', 'practical', 'together'] }
 ];
 
 /*
  * 質問。tags の値がプラスなら「そのタグを持つプレゼントの点が上がる」、
  * マイナスなら下がる。3〜4 で強い影響、1〜2 でゆるい影響。
+ * 値段に関する質問は置かない。
  */
 const QUESTIONS = [
   { id: 'q_style', text: '誕生日は、どんなふうに過ごせたら嬉しいですか？',
@@ -243,6 +307,13 @@ const QUESTIONS = [
       { emoji: '🍇', label: '果物やお茶', tags: { fruit: 3, tea: 3, drink: 2, food: 2 } }
     ] },
 
+  { id: 'q_morning', text: '朝いちばんに飲むものは？',
+    choices: [
+      { emoji: '☕', label: 'コーヒー', tags: { drink: 4, appliance: 1 } },
+      { emoji: '🍵', label: '日本茶', tags: { tea: 4, drink: 2, home: 1 } },
+      { emoji: '💧', label: '白湯やお水', tags: { health: 3, drink: -1 } }
+    ] },
+
   { id: 'q_tech', text: '新しい家電やデジタルものは、どうですか？',
     choices: [
       { emoji: '👍', label: '便利なら使ってみたい', tags: { tech_ok: 3, appliance: 2, gadget: 2 } },
@@ -261,15 +332,52 @@ const QUESTIONS = [
     choices: [
       { emoji: '♨️', label: '温泉でのんびり', tags: { travel: 4, experience: 2, relax: 2 } },
       { emoji: '🍷', label: 'おいしいごはん', tags: { dining: 4, experience: 2, food: 2 } },
-      { emoji: '🎼', label: '舞台・美術館・コンサート', tags: { culture: 4, experience: 2, hobby: 2 } }
+      { emoji: '🎼', label: '舞台・美術館・コンサート', tags: { culture: 4, experience: 2, music: 2 } }
     ] },
 
   { id: 'q_home', text: 'おうちにいる時間、何をしていることが多いですか？',
     choices: [
-      { emoji: '📺', label: 'テレビや動画を見る', tags: { home: 2, relax: 2, massage: 1 } },
+      { emoji: '📺', label: 'テレビや映画を見る', tags: { movie: 4, home: 2, relax: 2 } },
       { emoji: '🌱', label: '庭いじり・お花の世話', tags: { garden: 4, hobby: 2 } },
       { emoji: '🧵', label: '手芸や読書', tags: { craft: 3, book: 3, hobby: 2 } },
       { emoji: '🍳', label: '料理やお菓子づくり', tags: { kitchen: 4, appliance: 2 } }
+    ] },
+
+  { id: 'q_music', text: '音楽を聴くのは好きですか？',
+    choices: [
+      { emoji: '🎵', label: '好き。よく聴きます', tags: { music: 4, culture: 2, relax: 1 } },
+      { emoji: '🔇', label: 'あまり聴かないほう', tags: { music: -3 } }
+    ] },
+
+  { id: 'q_movie', text: '映画やドラマは、どうですか？',
+    choices: [
+      { emoji: '🍿', label: '見はじめると止まらない', tags: { movie: 4, home: 2, relax: 1 } },
+      { emoji: '🙂', label: 'そんなに見ないかな', tags: { movie: -3 } }
+    ] },
+
+  { id: 'q_learn', text: '新しいことを習ってみたい気持ちはありますか？',
+    choices: [
+      { emoji: '📖', label: 'あります。やってみたい', tags: { learning: 4, hobby: 2, culture: 2, experience: 1 } },
+      { emoji: '🍵', label: '今のままでじゅうぶん', tags: { learning: -3, relax: 2, home: 1 } }
+    ] },
+
+  { id: 'q_hands', text: '手を動かして何かを作るのは好きですか？',
+    choices: [
+      { emoji: '✂️', label: '好き。作っているときが楽しい', tags: { craft: 4, hobby: 2, garden: 1, kitchen: 1 } },
+      { emoji: '😌', label: '見ているほうが好き', tags: { craft: -3, relax: 2 } }
+    ] },
+
+  { id: 'q_pet', text: '生きものや植物の世話をしていますか？',
+    choices: [
+      { emoji: '🐈', label: 'ペットがいます', tags: { pet: 4, together: 2, home: 1 } },
+      { emoji: '🪴', label: '植物なら育てています', tags: { garden: 3, home: 1, pet: -1 } },
+      { emoji: '🚫', label: 'どちらもいません', tags: { pet: -3, garden: -2 } }
+    ] },
+
+  { id: 'q_cook', text: '料理をするのは、どちらかというと…',
+    choices: [
+      { emoji: '😊', label: '好き。作るのが楽しい', tags: { kitchen: 4, craft: 1 } },
+      { emoji: '😮‍💨', label: '毎日のことなので、正直めんどう', tags: { appliance: 3, practical: 3, dining: 2, kitchen: -1 } }
     ] },
 
   { id: 'q_wear', text: '服やアクセサリーを贈られるのは、どうですか？',
@@ -279,18 +387,11 @@ const QUESTIONS = [
       { emoji: '🧸', label: 'パジャマや部屋着ならぜひ', tags: { roomwear: 4, home: 2, fashion: 1 } }
     ] },
 
-  { id: 'q_budget', text: '息子からのプレゼント、値段はどのくらいが落ち着きますか？',
-    choices: [
-      { emoji: '🍪', label: '気を遣うから、お菓子くらいで十分', tags: { budget_low: 4, consumable: 2, budget_high: -3 } },
-      { emoji: '🎂', label: '節目だし、少しいいものでも', tags: { budget_mid: 3, budget_low: -1 } },
-      { emoji: '🎊', label: '60歳だし、長く使えるものを', tags: { budget_high: 4, keepsake: 2, luxury: 2, budget_low: -3 } }
-    ] },
-
-  { id: 'q_honne', text: 'ここだけの話。「値段は気にしなくていい」と言われたら、本当は？',
-    sub: '息子には見えません…と言いたいところですが、最後に送れます。正直にどうぞ。',
+  { id: 'q_honne', text: 'ここだけの話。どれかひとつ選べるとしたら、本当は？',
+    sub: '遠慮しなくて大丈夫です。正直なところを押してください。',
     choices: [
       { emoji: '🍩', label: 'やっぱり食べものが一番うれしい', tags: { food: 3, consumable: 3, sweets: 1 } },
-      { emoji: '🏆', label: 'ずっと使えるものが欲しい', tags: { keepsake: 3, budget_high: 2, luxury: 2 } },
+      { emoji: '🏆', label: 'ずっと使えるものが欲しい', tags: { keepsake: 3, luxury: 2, practical: 1 } },
       { emoji: '🌅', label: '思い出に残ることがしたい', tags: { experience: 4, together: 2, travel: 2 } }
     ] },
 
@@ -306,12 +407,24 @@ const QUESTIONS = [
       { emoji: '🫶', label: '誰かと一緒がうれしい', tags: { together: 3, family: 2, dining: 1 } }
     ] },
 
+  { id: 'q_friends', text: 'お友だちと出かけることは多いですか？',
+    choices: [
+      { emoji: '👯', label: 'よく出かけます', tags: { outing: 3, dining: 2, together: 2, culture: 1 } },
+      { emoji: '🏡', label: '家にいることが多いです', tags: { home: 3, outing: -2 } }
+    ] },
+
   { id: 'q_replace', text: '毎日使うもので、そろそろ買い替えたいものはありますか？',
     choices: [
       { emoji: '🔪', label: '台所まわり', tags: { kitchen: 3, appliance: 3, practical: 2 } },
       { emoji: '🧺', label: '掃除・洗濯まわり', tags: { cleaning: 4, appliance: 3, practical: 2 } },
       { emoji: '🛌', label: 'タオルや寝具', tags: { towel: 4, sleep: 3, practical: 2 } },
       { emoji: '🆗', label: 'とくにない', tags: { practical: -2, luxury: 2, experience: 1 } }
+    ] },
+
+  { id: 'q_sit', text: '家で座っている時間は長いほうですか？',
+    choices: [
+      { emoji: '🪑', label: '長いです。同じ場所によくいます', tags: { relax: 3, home: 2, massage: 2, health: 1 } },
+      { emoji: '🏃', label: 'わりと動きまわっています', tags: { active: 3, health: 1, relax: -1 } }
     ] },
 
   { id: 'q_scent', text: '香りのあるものは好きですか？',
@@ -324,5 +437,11 @@ const QUESTIONS = [
     choices: [
       { emoji: '🚶‍♀️', label: 'よく歩きます', tags: { shoes: 3, bag: 2, active: 3, outing: 2 } },
       { emoji: '🚗', label: '車が多い／あまり歩かない', tags: { shoes: -2, active: -1, home: 1 } }
+    ] },
+
+  { id: 'q_contact', text: '遠くの家族とやりとりするなら、どちらが好きですか？',
+    choices: [
+      { emoji: '✉️', label: '手紙やはがき', tags: { keepsake: 3, family: 2, craft: 2, book: 1 } },
+      { emoji: '📞', label: '電話やビデオ通話', tags: { gadget: 3, together: 3, family: 2, tech_ok: 2 } }
     ] }
 ];

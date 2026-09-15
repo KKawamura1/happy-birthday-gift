@@ -96,7 +96,7 @@ const validPayload = (over = {}) => ({
   message: '',
   keywords: ['甘いもの好き'],
   answers: [{ question: '甘いものは好きですか？', answer: '大好き' }],
-  ranking: [{ name: 'お取り寄せスイーツの詰め合わせ', budget: '3,000〜8,000円' }],
+  ranking: [{ name: 'お取り寄せスイーツの詰め合わせ' }],
   picked: null,
   ...over
 });
@@ -108,7 +108,7 @@ console.log('\n=== 受け口の検査 ===');
   const app = load();
   app.post(validPayload());
   check('ふつうの回答は1行書かれる', app.dataRows().length === 1);
-  check('回答の中身がそのまま入る', app.dataRows()[0][8] === 'お取り寄せスイーツの詰め合わせ');
+  check('回答の中身がそのまま入る', app.dataRows()[0][7] === 'お取り寄せスイーツの詰め合わせ');
 }
 
 /* 同じセッションは行が増えず、上書きされる */
@@ -133,14 +133,27 @@ console.log('\n=== 受け口の検査 ===');
   attacks.forEach((attack, i) => {
     app.post(validPayload({
       sessionId: `session-formula-${i}0000000`,
-      picked: { name: attack, budget: attack },
+      picked: { name: attack },
       message: attack
     }));
   });
-  const cells = app.dataRows().flatMap((row) => [row[4], row[5], row[6]]);
+  const cells = app.dataRows().flatMap((row) => [row[4], row[5]]);   // 選んだもの / ひとこと
   check('数式として解釈される文字列は先頭に \' がついて無害化される',
-    cells.length === 12 && cells.every((c) => typeof c === 'string' && c.startsWith("'")));
+    cells.length === 8 && cells.every((c) => typeof c === 'string' && c.startsWith("'")));
   check('無害化しても中身は読める', cells[0].includes('IMPORTXML'));
+}
+
+/* 金額はどこにも出さない方針なので、送られてきても捨てる */
+{
+  const app = load();
+  app.post(validPayload({
+    picked: { name: 'スイーツ', budget: '5,000円' },
+    ranking: [{ name: 'スイーツ', budget: '5,000円' }]
+  }));
+  const row = app.dataRows()[0];
+  check('列に「目安」が無い', !app.rows[0].includes('目安'));
+  check('金額を送りつけられてもシートに入らない',
+    row.every((cell) => typeof cell !== 'string' || !cell.includes('5,000円')));
 }
 
 /* 合言葉 */
@@ -186,9 +199,9 @@ console.log('\n=== 受け口の検査 ===');
     answers: Array.from({ length: 40 }, () => ({ question: 'Q'.repeat(60), answer: 'A'.repeat(60) }))
   }));
   const row = app.dataRows()[0];
-  check('ひとことは400字ほどで切られる', row[6].length <= 401);
-  check('キーワードは10個までに切られる', row[7].split('、').length === 10);
-  check('回答は20問までに切られる', row[11].split(String.fromCharCode(10)).length === 20);
+  check('ひとことは400字ほどで切られる', row[5].length <= 401);
+  check('キーワードは10個までに切られる', row[6].split('、').length === 10);
+  check('回答は20問までに切られる', row[10].split(String.fromCharCode(10)).length === 20);
 }
 
 /* 回数制限 */
@@ -213,10 +226,10 @@ console.log('\n=== 受け口の検査 ===');
   app.post(validPayload({ finished: false }));
   check('途中の回答ではメールしない', app.mails.length === 0);
 
-  app.post(validPayload({ finished: true, picked: { name: 'スイーツ', budget: '5,000円' } }));
+  app.post(validPayload({ finished: true, picked: { name: 'スイーツ' } }));
   check('選び終わったらメールする', app.mails.length === 1);
 
-  app.post(validPayload({ finished: true, picked: { name: 'スイーツ', budget: '5,000円' } }));
+  app.post(validPayload({ finished: true, picked: { name: 'スイーツ' } }));
   check('同じ回答者に二重にメールしない', app.mails.length === 1);
 
   for (let i = 0; i < 40; i++) {
