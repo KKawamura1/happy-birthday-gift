@@ -22,6 +22,28 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
+      # 送信先のURLと合言葉は git に置かず、ここで組み立てる。
+      # Settings → Secrets and variables → Actions で登録しておくこと。
+      # （どちらも公開ページのソースには出る。秘密にはできないが、履歴には残さない）
+      - name: 送信先の設定を書き出す
+        env:
+          REPORT_ENDPOINT: ${{ secrets.REPORT_ENDPOINT }}
+          REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
+        run: |
+          if [ -z "$REPORT_ENDPOINT" ]; then
+            echo "::warning::REPORT_ENDPOINT が未設定です。自動送信は無効になり、手動送信に切り替わります。"
+          fi
+          node -e '
+            const js = (name) => JSON.stringify(process.env[name] || "");
+            process.stdout.write(
+              "/* 公開時に GitHub Actions が生成。直接編集しないこと */\n" +
+              "const REPORT_ENDPOINT = " + js("REPORT_ENDPOINT") + ";\n" +
+              "const REPORT_TOKEN = " + js("REPORT_TOKEN") + ";\n" +
+              "const REPORT_MODE = \"beacon\";\n"
+            );
+          ' > assets/config.js
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

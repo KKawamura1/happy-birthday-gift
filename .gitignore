@@ -1,2 +1,5 @@
 node_modules/
 .DS_Store
+
+# 送信先のURLと合言葉。git には載せない（config.example.js を参照）
+assets/config.js

@@ -49,9 +49,13 @@ function serve() {
       res.writeHead(200).end('ok');
       return;
     }
-    if (rel === 'assets/config.js' && configOverride) {
+    if (rel === 'assets/config.js') {
+      /* config.js は git に入らないので、無ければひな型で代用する */
+      const body = configOverride
+        ?? await fs.readFile(path.join(ROOT, 'assets/config.js'), 'utf8')
+             .catch(() => fs.readFile(path.join(ROOT, 'assets/config.example.js'), 'utf8'));
       res.writeHead(200, { 'content-type': 'text/javascript' });
-      res.end(configOverride);
+      res.end(body);
       return;
     }
 
