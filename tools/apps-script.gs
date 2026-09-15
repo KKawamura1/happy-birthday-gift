@@ -46,9 +46,10 @@ const MAX_EMAILS_PER_DAY = 20;        // メールの本数
 
 const NEWLINE = String.fromCharCode(10);
 
+/* 金額の列は置かない。値段を見せると遠慮が入ってしまうため */
 const HEADERS = [
   '更新日時', 'セッション', '回答数', '選び終わった',
-  '選んだもの', '目安', 'ひとこと', 'キーワード',
+  '選んだもの', 'ひとこと', 'キーワード',
   '1位', '2位', '3位', '回答の全部', '通知済み'
 ];
 
@@ -154,10 +155,10 @@ function clean(body) {
       };
     }),
     ranking: list(body.ranking, 5, function (r) {
-      return { name: str(r && r.name, 80), budget: str(r && r.budget, 40) };
+      return { name: str(r && r.name, 80) };
     }),
     picked: body.picked && typeof body.picked === 'object'
-      ? { name: str(body.picked.name, 80), budget: str(body.picked.budget, 40) }
+      ? { name: str(body.picked.name, 80) }
       : null
   };
 }
@@ -219,7 +220,6 @@ function buildRow(data) {
     data.answeredCount,
     data.finished ? 'はい' : '',
     data.picked ? data.picked.name : '',
-    data.picked ? data.picked.budget : '',
     data.message,
     data.keywords.join('、'),
     ranking[0] ? ranking[0].name : '',
@@ -246,7 +246,7 @@ function notify(data) {
   if (sent >= MAX_EMAILS_PER_DAY) return false;
 
   const lines = ['ほしいものクイズに回答がありました。', ''];
-  if (data.picked) lines.push('えらんだもの: ' + data.picked.name + '（' + data.picked.budget + '）');
+  if (data.picked) lines.push('えらんだもの: ' + data.picked.name);
   if (data.message) lines.push('ひとこと: ' + data.message);
   lines.push('', 'キーワード: ' + data.keywords.join('、'), '', '--- 回答 ---');
   data.answers.forEach(function (a, i) {

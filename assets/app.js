@@ -8,9 +8,9 @@
  *      （＝答えを聞いて「いちばん情報が増える」質問。アキネーターと同じ考え方）
  */
 
-const MIN_QUESTIONS = 8;
-const MAX_QUESTIONS = 11;
-const DECIDED_MARGIN = 2.2;    // 1位と2位がこれだけ離れたら打ち切ってよい
+const MIN_QUESTIONS = 9;
+const MAX_QUESTIONS = 13;
+const DECIDED_MARGIN = 0.22;   // 1位と2位がこれだけ離れたら打ち切ってよい
 const STORAGE_KEY = 'gift-quiz-progress-v1';
 
 const state = {
@@ -43,6 +43,35 @@ function showScreen(name) {
 
 /* ---------- 採点 ---------- */
 
+/*
+ * 各タグが「最大でどれだけ点を集めうるか」。
+ *
+ * 「おうち時間」のように多くの質問から加点されるタグは、放っておくと
+ * 「甘いもの好き」のように一問しか出ないタグを押しつぶしてしまう。
+ * そこで、集まった点をこの最大値で割り、どのタグも同じ重みで効くようにする。
+ */
+const TAG_REACH = (() => {
+  const reach = {};
+  for (const question of QUESTIONS) {
+    /* 1つの質問からは1択ぶんしか入らないので、その質問での最大値だけを足す */
+    const strongest = {};
+    for (const choice of question.choices) {
+      for (const [tag, value] of Object.entries(choice.tags)) {
+        strongest[tag] = Math.max(strongest[tag] || 0, Math.abs(value));
+      }
+    }
+    for (const [tag, value] of Object.entries(strongest)) {
+      reach[tag] = (reach[tag] || 0) + value;
+    }
+  }
+  return reach;
+})();
+
+/* そのタグに、いまどれだけ寄っているか（-1 〜 1 くらいに収まる） */
+function tagWeight(scores, tag) {
+  return (scores[tag] || 0) / (TAG_REACH[tag] || 1);
+}
+
 function tagScores(answers = state.answers) {
   const scores = {};
   for (const ans of answers) {
@@ -59,7 +88,7 @@ function tagScores(answers = state.answers) {
  * タグ数の平方根で割って平等にする。
  */
 function giftScore(gift, scores) {
-  const sum = gift.tags.reduce((total, tag) => total + (scores[tag] || 0), 0);
+  const sum = gift.tags.reduce((total, tag) => total + tagWeight(scores, tag), 0);
   return sum / Math.sqrt(gift.tags.length);
 }
 
@@ -75,8 +104,9 @@ function informativeness(question, ranking) {
   ranking.slice(0, 10).forEach((item, index) => {
     const weight = 1 / (1 + index * 0.3);   // 上位の候補ほど重視する
     const deltas = question.choices.map((choice) =>
-      item.gift.tags.reduce((sum, tag) => sum + (choice.tags[tag] || 0), 0) /
-      Math.sqrt(item.gift.tags.length)
+      item.gift.tags.reduce(
+        (sum, tag) => sum + (choice.tags[tag] || 0) / (TAG_REACH[tag] || 1), 0
+      ) / Math.sqrt(item.gift.tags.length)
     );
     total += weight * (Math.max(...deltas) - Math.min(...deltas));
   });
@@ -160,18 +190,17 @@ function snapshot() {
       const question = questionById(ans.qid);
       return { question: question.text, answer: question.choices[ans.ci].label };
     }),
-    keywords: Object.entries(scores)
-      .filter(([tag, value]) => value > 0 && TAG_LABELS[tag])
-      .sort((a, b) => b[1] - a[1])
+    keywords: Object.keys(scores)
+      .filter((tag) => scores[tag] > 0 && TAG_LABELS[tag])
+      .sort((a, b) => tagWeight(scores, b) - tagWeight(scores, a))
       .slice(0, 8)
-      .map(([tag]) => TAG_LABELS[tag]),
+      .map((tag) => TAG_LABELS[tag]),
     ranking: ranking.slice(0, 5).map((item, index) => ({
       rank: index + 1,
-      name: item.gift.name,
-      budget: item.gift.budget
+      name: item.gift.name
     })),
     shown: state.shownTop.map((id) => giftById(id).name),
-    picked: picked ? { name: picked.name, budget: picked.budget, note: picked.note } : null,
+    picked: picked ? { name: picked.name, note: picked.note } : null,
     message: state.message.trim()
   };
 }
@@ -253,7 +282,7 @@ function goBack() {
 function reasonsFor(gift, scores) {
   return gift.tags
     .filter((tag) => (scores[tag] || 0) > 0 && TAG_LABELS[tag])
-    .sort((a, b) => scores[b] - scores[a])
+    .sort((a, b) => tagWeight(scores, b) - tagWeight(scores, a))
     .slice(0, 3)
     .map((tag) => TAG_LABELS[tag]);
 }
@@ -277,13 +306,11 @@ function renderResult() {
       <div class="gift-body">
         <h3 class="gift-name"></h3>
         <p class="gift-note"></p>
-        <p class="gift-budget"></p>
         <p class="gift-reason"></p>
       </div>
       <div class="gift-pick">これにする →</div>`;
     card.querySelector('.gift-name').textContent = item.gift.name;
     card.querySelector('.gift-note').textContent = item.gift.note;
-    card.querySelector('.gift-budget').textContent = `目安：${item.gift.budget}`;
     const reasons = reasonsFor(item.gift, scores);
     card.querySelector('.gift-reason').textContent =
       reasons.length ? `→ ${reasons.join('・')} だから` : '';
@@ -338,8 +365,7 @@ function buildResultText() {
   const lines = [
     '🎂 お母さんの「ほしいものクイズ」の結果です',
     '',
-    `▼ えらんだのは：${gift.emoji} ${gift.name}`,
-    `　 目安：${gift.budget}`
+    `▼ えらんだのは：${gift.emoji} ${gift.name}`
   ];
   if (state.message.trim()) {
     lines.push('', `▼ ひとこと：${state.message.trim()}`);
@@ -360,7 +386,6 @@ function renderSend() {
   const gift = giftById(state.finalPick);
   $('#picked-emoji').textContent = gift.emoji;
   $('#picked-name').textContent = gift.name;
-  $('#picked-budget').textContent = `目安：${gift.budget}`;
   $('#copy-status').textContent = '';
   refreshShareLinks();
   renderStatus(Transport.status());
@@ -393,7 +418,6 @@ function renderReceived(payload) {
 
   $('#received-emoji').textContent = gift ? gift.emoji : '🎁';
   $('#received-name').textContent = gift ? gift.name : '（選択なし）';
-  $('#received-budget').textContent = gift ? `目安：${gift.budget}` : '';
   $('#received-note').textContent = gift ? gift.note : '';
 
   const messageBox = $('#received-message');
@@ -405,7 +429,7 @@ function renderReceived(payload) {
   $('#received-others').innerHTML = '';
   others.forEach((other) => {
     const li = document.createElement('li');
-    li.textContent = `${other.emoji} ${other.name}（${other.budget}）`;
+    li.textContent = `${other.emoji} ${other.name}`;
     $('#received-others').appendChild(li);
   });
 
@@ -421,12 +445,12 @@ function renderReceived(payload) {
     answerList.appendChild(li);
   });
 
-  const topTags = Object.entries(scores)
-    .filter(([tag, value]) => value > 0 && TAG_LABELS[tag])
-    .sort((a, b) => b[1] - a[1])
+  const topTags = Object.keys(scores)
+    .filter((tag) => scores[tag] > 0 && TAG_LABELS[tag])
+    .sort((a, b) => tagWeight(scores, b) - tagWeight(scores, a))
     .slice(0, 6);
   $('#received-tags').innerHTML = '';
-  topTags.forEach(([tag]) => {
+  topTags.forEach((tag) => {
     const span = document.createElement('span');
     span.className = 'tag';
     span.textContent = TAG_LABELS[tag];
