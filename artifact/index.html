@@ -468,7 +468,10 @@ textarea {
   <!-- ③ 結果画面 -->
   <section class="screen" data-screen="result" hidden>
     <h2 class="result-title">たぶん、これが近いです</h2>
-    <p class="result-lead">この中で、いちばんピンとくるものを押してください。</p>
+    <p class="result-lead">
+      気になるものを押してみてください。もう少し詳しく聞いたあとで、
+      またここにもどってこられます。
+    </p>
     <div class="result-list" id="result-list"></div>
     <button type="button" id="more-button" class="secondary">うーん、ほかの候補も見る</button>
     <button type="button" id="retry-button" class="ghost">最初からやりなおす</button>
@@ -478,7 +481,7 @@ textarea {
   <section class="screen" data-screen="refine" hidden>
     <p class="eyebrow eyebrow--left" id="refine-eyebrow"></p>
     <h2 class="question" id="refine-question"></h2>
-    <p class="result-lead">もう少しだけ、細かく教えてください。</p>
+    <p class="result-lead">もう少しだけ、細かく教えてください。もどるのは自由です。</p>
     <div class="choices" id="refine-choices"></div>
     <p class="send-status" hidden></p>
     <button type="button" id="refine-back" class="ghost">← ひとつ前にもどる</button>
@@ -487,6 +490,7 @@ textarea {
   <!-- ⑤ おわりの画面 -->
   <section class="screen" data-screen="send" hidden>
     <h2 class="result-title">ありがとうございました</h2>
+    <p class="result-lead">気が変わったら、下から選びなおせます。</p>
     <div class="picked">
       <div class="picked-emoji" id="picked-emoji"></div>
       <div class="picked-text">
@@ -521,7 +525,7 @@ textarea {
       <textarea id="fallback-text" class="fallback" rows="6" readonly hidden></textarea>
     </div>
 
-    <button type="button" id="send-back-button" class="ghost">← 結果にもどる</button>
+    <button type="button" id="send-back-button" class="ghost">← 選びなおす</button>
   </section>
 
   <!-- ⑥ 息子が結果を受け取る画面（リンクを開いたとき） -->
@@ -1962,7 +1966,7 @@ function renderResult() {
         <p class="gift-note"></p>
         <p class="gift-reason"></p>
       </div>
-      <div class="gift-pick">これにする →</div>`;
+      <div class="gift-pick">これを見てみる →</div>`;
     card.querySelector('.gift-name').textContent = item.gift.name;
     card.querySelector('.gift-note').textContent = item.gift.note;
     const reasons = reasonsFor(item.gift, scores);
