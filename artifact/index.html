@@ -889,40 +889,45 @@ const QUESTIONS = [
     choices: [
       { emoji: '🏠', label: 'おうちでゆっくり', tags: { home: 3, relax: 2, outing: -2, experience: -2 } },
       { emoji: '🚶', label: 'どこかへ出かけたい', tags: { outing: 3, experience: 3, active: 2, home: -1 } },
-      { emoji: '👨‍👩‍👦', label: '家族と話したり会ったり', tags: { family: 3, together: 3, photo: 2 } }
+      { emoji: '👨‍👩‍👦', label: '家族と話したり会ったり', tags: { family: 3, together: 3, photo: 2 } },
+      { emoji: '🎐', label: 'とくにこだわりません', escape: true, tags: {} }
     ] },
 
   { id: 'q_form', text: 'プレゼント、どっちが好みですか？',
     choices: [
       { emoji: '🎀', label: 'ずっと残るもの', tags: { keepsake: 3, consumable: -3, practical: 1 } },
       { emoji: '🍽️', label: '食べたり使ったりしてなくなるもの', tags: { consumable: 3, food: 2, keepsake: -3 } },
-      { emoji: '🤔', label: 'どちらでも嬉しい', tags: { practical: 1, experience: 1 } }
+      { emoji: '🤔', label: 'どちらでも嬉しい', escape: true, tags: { practical: 1, experience: 1 } }
     ] },
 
   { id: 'q_want', text: '最近「これ欲しいなあ」と思ったのは、どれに近いですか？',
     choices: [
       { emoji: '🧹', label: '家のことがラクになるもの', tags: { appliance: 3, practical: 3, cleaning: 2, kitchen: 2 } },
       { emoji: '🛀', label: '自分を甘やかすもの', tags: { luxury: 3, relax: 3, beauty: 2, bath: 2 } },
-      { emoji: '🎨', label: '楽しみ・趣味のもの', tags: { hobby: 3, culture: 2, craft: 2, garden: 2 } }
+      { emoji: '🎨', label: '楽しみ・趣味のもの', tags: { hobby: 3, culture: 2, craft: 2, garden: 2 } },
+      { emoji: '🤷', label: 'とくに思いつきません', escape: true, tags: {} }
     ] },
 
   { id: 'q_taste', text: '食べものなら、どれがいちばん嬉しいですか？',
     choices: [
       { emoji: '🍡', label: '甘いもの', tags: { sweets: 4, food: 2 } },
       { emoji: '🍢', label: 'しょっぱいもの・お酒', tags: { savory: 3, alcohol: 3, food: 2, sweets: -2 } },
-      { emoji: '🍇', label: '果物やお茶', tags: { fruit: 3, tea: 3, drink: 2, food: 2 } }
+      { emoji: '🍇', label: '果物やお茶', tags: { fruit: 3, tea: 3, drink: 2, food: 2 } },
+      { emoji: '🍽️', label: '食べものはあまり要りません', escape: true, tags: { food: -3, consumable: -2 } }
     ] },
 
   { id: 'q_morning', text: '朝いちばんに飲むものは？',
     choices: [
       { emoji: '☕', label: 'コーヒー', tags: { drink: 4, appliance: 1 } },
       { emoji: '🍵', label: '日本茶', tags: { tea: 4, drink: 2, home: 1 } },
-      { emoji: '💧', label: '白湯やお水', tags: { health: 3, drink: -1 } }
+      { emoji: '💧', label: '白湯やお水', tags: { health: 3, drink: -1 } },
+      { emoji: '🥛', label: 'そのほか（紅茶や牛乳など）', escape: true, tags: { drink: 2 } }
     ] },
 
   { id: 'q_tech', text: '新しい家電やデジタルものは、どうですか？',
     choices: [
       { emoji: '👍', label: '便利なら使ってみたい', tags: { tech_ok: 3, appliance: 2, gadget: 2 } },
+      { emoji: '🙂', label: 'ふつうに使えます', escape: true, tags: { tech_ok: 1 } },
       { emoji: '😅', label: '説明書を読むのは苦手', tags: { tech_ok: -3, gadget: -3, appliance: -2 } }
     ] },
 
@@ -931,14 +936,15 @@ const QUESTIONS = [
       { emoji: '💆', label: '肩や腰がつらい', tags: { massage: 4, relax: 2, health: 3 } },
       { emoji: '🧦', label: '冷えが気になる', tags: { warm: 4, bath: 2, roomwear: 2 } },
       { emoji: '🌙', label: 'ぐっすり眠りたい', tags: { sleep: 4, relax: 2 } },
-      { emoji: '💪', label: 'とくに元気です', tags: { active: 2, outing: 1, health: -1 } }
+      { emoji: '💪', label: 'とくに元気です', escape: true, tags: { active: 2, outing: 1, health: -1 } }
     ] },
 
   { id: 'q_outing', text: 'お出かけするなら、どれがいちばん楽しみ？',
     choices: [
       { emoji: '♨️', label: '温泉でのんびり', tags: { travel: 4, experience: 2, relax: 2 } },
       { emoji: '🍷', label: 'おいしいごはん', tags: { dining: 4, experience: 2, food: 2 } },
-      { emoji: '🎼', label: '舞台・美術館・コンサート', tags: { culture: 4, experience: 2, music: 2 } }
+      { emoji: '🎼', label: '舞台・美術館・コンサート', tags: { culture: 4, experience: 2, music: 2 } },
+      { emoji: '🛍️', label: 'そのほか（買い物や自然など）', escape: true, tags: { outing: 2, experience: 1 } }
     ] },
 
   { id: 'q_home', text: 'おうちにいる時間、何をしていることが多いですか？',
@@ -946,7 +952,8 @@ const QUESTIONS = [
       { emoji: '📺', label: 'テレビや映画を見る', tags: { movie: 4, home: 2, relax: 2 } },
       { emoji: '🌱', label: '庭いじり・お花の世話', tags: { garden: 4, hobby: 2 } },
       { emoji: '🧵', label: '手芸や読書', tags: { craft: 3, book: 3, hobby: 2 } },
-      { emoji: '🍳', label: '料理やお菓子づくり', tags: { kitchen: 4, appliance: 2 } }
+      { emoji: '🍳', label: '料理やお菓子づくり', tags: { kitchen: 4, appliance: 2 } },
+      { emoji: '🌀', label: 'そのほか', escape: true, tags: {} }
     ] },
 
   { id: 'q_music', text: '音楽を聴くのは好きですか？',
@@ -977,7 +984,7 @@ const QUESTIONS = [
     choices: [
       { emoji: '🐈', label: 'ペットがいます', tags: { pet: 4, together: 2, home: 1 } },
       { emoji: '🪴', label: '植物なら育てています', tags: { garden: 3, home: 1, pet: -1 } },
-      { emoji: '🚫', label: 'どちらもいません', tags: { pet: -3, garden: -2 } }
+      { emoji: '🚫', label: 'どちらもいません', escape: true, tags: { pet: -3, garden: -2 } }
     ] },
 
   { id: 'q_cook', text: '料理をするのは、どちらかというと…',
@@ -990,7 +997,8 @@ const QUESTIONS = [
     choices: [
       { emoji: '🙅', label: 'サイズも好みもあるので自分で選びたい', tags: { fashion: -3, accessory: -2, shoes: -2, bag: -2 } },
       { emoji: '💝', label: 'もらえたら嬉しい', tags: { fashion: 3, accessory: 3, keepsake: 2 } },
-      { emoji: '🧸', label: 'パジャマや部屋着ならぜひ', tags: { roomwear: 4, home: 2, fashion: 1 } }
+      { emoji: '🧸', label: 'パジャマや部屋着ならぜひ', tags: { roomwear: 4, home: 2, fashion: 1 } },
+      { emoji: '🤷', label: 'とくにこだわりません', escape: true, tags: {} }
     ] },
 
   { id: 'q_honne', text: 'ここだけの話。どれかひとつ選べるとしたら、本当は？',
@@ -998,7 +1006,8 @@ const QUESTIONS = [
     choices: [
       { emoji: '🍩', label: 'やっぱり食べものが一番うれしい', tags: { food: 3, consumable: 3, sweets: 1 } },
       { emoji: '🏆', label: 'ずっと使えるものが欲しい', tags: { keepsake: 3, luxury: 2, practical: 1 } },
-      { emoji: '🌅', label: '思い出に残ることがしたい', tags: { experience: 4, together: 2, travel: 2 } }
+      { emoji: '🌅', label: '思い出に残ることがしたい', tags: { experience: 4, together: 2, travel: 2 } },
+      { emoji: '🤔', label: 'ひとつには決められません', escape: true, tags: {} }
     ] },
 
   { id: 'q_photo', text: '写真や手紙など、思い出のものはどうですか？',
@@ -1024,6 +1033,7 @@ const QUESTIONS = [
       { emoji: '🔪', label: '台所まわり', tags: { kitchen: 3, appliance: 3, practical: 2 } },
       { emoji: '🧺', label: '掃除・洗濯まわり', tags: { cleaning: 4, appliance: 3, practical: 2 } },
       { emoji: '🛌', label: 'タオルや寝具', tags: { towel: 4, sleep: 3, practical: 2 } },
+      { emoji: '🔧', label: 'そのほかに何かある', escape: true, tags: { practical: 2 } },
       { emoji: '🆗', label: 'とくにない', tags: { practical: -2, luxury: 2, experience: 1 } }
     ] },
 
@@ -1048,7 +1058,8 @@ const QUESTIONS = [
   { id: 'q_contact', text: '遠くの家族とやりとりするなら、どちらが好きですか？',
     choices: [
       { emoji: '✉️', label: '手紙やはがき', tags: { keepsake: 3, family: 2, craft: 2, book: 1 } },
-      { emoji: '📞', label: '電話やビデオ通話', tags: { gadget: 3, together: 3, family: 2, tech_ok: 2 } }
+      { emoji: '📞', label: '電話・ビデオ通話・LINE', tags: { gadget: 3, together: 3, family: 2, tech_ok: 2 } },
+      { emoji: '🤷', label: 'どちらでもいい', escape: true, tags: {} }
     ] }
 ];
 

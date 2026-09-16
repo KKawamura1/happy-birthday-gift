@@ -95,7 +95,8 @@ function load({ token = '', email = '', header = null } = {}) {
   vm.createContext(context);
   /* const 宣言は context に生えないので、使うものだけ渡してもらう */
   vm.runInContext(
-    source + ';globalThis.__headers = HEADERS; globalThis.__doPost = doPost;',
+    source + ';globalThis.__headers = HEADERS; globalThis.__doPost = doPost;' +
+      'globalThis.__doGet = doGet;',
     context
   );
 
@@ -107,6 +108,7 @@ function load({ token = '', email = '', header = null } = {}) {
 
   return {
     post, rows, mails, renames,
+    doGet: () => context.__doGet(),
     headers: () => context.__headers.slice(),
     header: () => rows[0],
     dataRows: () => rows.slice(1)
@@ -211,6 +213,20 @@ console.log('\n=== 受け口の検査 ===');
   check('1件あたりの長さも切られる', trail.every((line) => line.length <= 121));
 }
 
+/* 「目安」が残っている、ひとつ前の列構成からの移行 */
+{
+  const app = load({ header: [
+    '更新日時', 'セッション', '回答数', '選び終わった', '選んだもの', '目安',
+    'ひとこと', 'キーワード', '1位', '2位', '3位', '回答の全部', '通知済み'
+  ]});
+  app.post(validPayload({ journal: ['0秒 はじめた', '9秒 もどった：やり直した'] }));
+  check('「目安」が残った古いシートからも移行できる',
+    app.renames.length === 1 && app.renames[0][1].startsWith('answers_old_'));
+  check('移行後は「迷った跡」列ができている', app.header().includes('迷った跡'));
+  check('移行後は「目安」列が消えている', !app.header().includes('目安'));
+  check('移行後すぐ迷った跡が書き込まれる', String(app.dataRows()[0][11]).includes('もどった'));
+}
+
 /* 列の構成が変わったら、古いシートを残して作り直す */
 {
   const app = load({ header: ['更新日時', 'セッション', '回答数', '選んだもの'] });
@@ -306,6 +322,13 @@ console.log('\n=== 受け口の検査 ===');
 }
 
 /* git に入るファイルに、送信先のURLや合言葉が紛れこんでいないか */
+/* 版の表示 */
+{
+  const shown = load().doGet().text;
+  check('デプロイ確認用に doGet が版を返す', shown.includes('版: '));
+  check('doGet に列の構成が出る', shown.includes('迷った跡'));
+}
+
 console.log('\n=== うっかりコミットの見張り ===');
 {
   const tracked = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })

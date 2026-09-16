@@ -47,6 +47,29 @@ check('すべての質問に2つ以上の選択肢がある',
   QUESTIONS.every((q) => q.text && q.choices.length >= 2),
   QUESTIONS.filter((q) => !(q.text && q.choices.length >= 2)).map((q) => q.id).join(', '));
 
+/*
+ * どれも選べない質問を作らないための決まり。
+ *   - 2択のときは、互いに補集合になっている（「好き」と「そうでもない」など）
+ *   - 3択以上のときは、どれにも当てはまらない人が押せる選択肢を必ず1つ置き、
+ *     escape: true と書いて、いちばん下に並べる
+ */
+const needEscape = QUESTIONS.filter((q) => q.choices.length >= 3);
+const noEscape = needEscape.filter((q) => q.choices.filter((c) => c.escape).length !== 1);
+check(`3択以上の${needEscape.length}問すべてに、どれも選べない人向けの選択肢がある`,
+  noEscape.length === 0, noEscape.map((q) => q.id).join(', '));
+
+const escapeNotLast = needEscape.filter((q) => {
+  const at = q.choices.findIndex((c) => c.escape);
+  /* 「そのほか」は下、「とくにない」があるならその手前 */
+  return at < q.choices.length - 2;
+});
+check('その選択肢は下のほうに置かれている', escapeNotLast.length === 0,
+  escapeNotLast.map((q) => q.id).join(', '));
+
+const oddBinary = QUESTIONS.filter((q) => q.choices.length === 2 && q.choices.some((c) => c.escape));
+check('2択の質問には逃げ道を置かない（補集合で足りる）', oddBinary.length === 0,
+  oddBinary.map((q) => q.id).join(', '));
+
 /* 金額に触れていないか。ここが崩れると遠慮が入ってしまう */
 const PRICE = /円|予算|値段|いくら|価格|budget/;
 check('プレゼントに金額の情報がない', GIFTS.every((g) => !('budget' in g)));
