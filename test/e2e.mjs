@@ -87,6 +87,20 @@ function serve() {
   });
 }
 
+/* 深掘りの質問に答えきる。答えた質問と選んだ内容を返す */
+async function answerRefinements(page, pick = 0) {
+  const steps = [];
+  while (await page.locator('[data-screen="refine"]').isVisible()) {
+    const question = await page.textContent('#refine-question');
+    const labels = await page.locator('#refine-choices .choice-label').allTextContents();
+    const index = Math.min(pick, labels.length - 1);
+    steps.push({ question, answer: labels[index] });
+    await page.locator('#refine-choices .choice').nth(index).click();
+    if (steps.length > 5) throw new Error('深掘りが終わらない');
+  }
+  return steps;
+}
+
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(check, timeout = 5000) {
   const deadline = Date.now() + timeout;
@@ -149,8 +163,16 @@ for (const [name, prefs] of Object.entries(PERSONAS)) {
   console.log(`\n=== ${name}（${asked}問 / 1位と2位の差 ${margin}） ===`);
   names.forEach((n, i) => console.log(`  ${i + 1}. ${n}  ${reasons[i] || ''}`));
 
-  /* 1位を選び、ひとことを書いて、送信用リンクを作る */
+  /* 1位を選び、深掘りに答え、ひとことを書いて、送信用リンクを作る */
   await page.locator('#result-list .gift-card').first().click();
+  const steps = await answerRefinements(page);
+  if (steps.length === 0) fail(`[${name}] 深掘りの質問が出ない`);
+  const item = await page.textContent('#picked-name');
+  const category = await page.textContent('#picked-category');
+  if (category !== names[0]) fail(`[${name}] 大分類の表示がずれている: ${category} ≠ ${names[0]}`);
+  if (item === names[0]) fail(`[${name}] 具体的な品まで絞れていない`);
+  console.log(`  深掘り${steps.length}問: ${steps.map((t) => t.answer).join(' → ')}  ⇒ 「${item}」`);
+
   await page.fill('#message-input', 'ありがとう。これがいいな。');
   const lineHref = await page.getAttribute('#share-line', 'href');
   if (!lineHref.startsWith('https://line.me/R/share?text=')) fail(`[${name}] LINEリンクが不正`);
@@ -164,11 +186,21 @@ for (const [name, prefs] of Object.entries(PERSONAS)) {
   await received.goto(url);
   if (!(await received.locator('[data-screen="received"]').isVisible())) fail(`[${name}] 受け取り画面が出ない`);
   const got = await received.locator('#received-name').textContent();
+  const gotCategory = await received.locator('#received-category').textContent();
   const answerCount = await received.locator('#received-answers li').count();
   const message = await received.locator('#received-message-text').textContent();
-  console.log(`  → 息子に届く内容: ${got} / 回答${answerCount}件 / ひとこと「${message}」`);
-  if (got !== names[0]) fail(`[${name}] 届いた品名がずれている: ${got} ≠ ${names[0]}`);
-  if (answerCount !== asked) fail(`[${name}] 回答件数がずれている: ${answerCount} ≠ ${asked}`);
+  console.log(`  → 息子に届く内容: ${gotCategory} / ${got} / 回答${answerCount}件 / ひとこと「${message}」`);
+  if (got !== item) fail(`[${name}] 届いた品名がずれている: ${got} ≠ ${item}`);
+  if (gotCategory !== names[0]) fail(`[${name}] 届いた大分類がずれている: ${gotCategory} ≠ ${names[0]}`);
+  if (answerCount !== asked + steps.length) {
+    fail(`[${name}] 回答件数がずれている: ${answerCount} ≠ ${asked + steps.length}`);
+  }
+  const rows = await received.locator('#received-answers .qa-a').allTextContents();
+  for (const step of steps) {
+    if (!rows.some((row) => row.includes(step.answer))) {
+      fail(`[${name}] 深掘りの答え「${step.answer}」が息子に届いていない`);
+    }
+  }
   if (message !== 'ありがとう。これがいいな。') fail(`[${name}] ひとことが届いていない`);
 
   await context.close();
@@ -208,13 +240,30 @@ for (const [name, prefs] of Object.entries(PERSONAS)) {
   }
   const chosen = await page.locator('#result-list .gift-name').first().textContent();
   await page.locator('#result-list .gift-card').first().click();
+  const refineSteps = await answerRefinements(page);
 
   if (!(await until(() => collected.some((c) => c.finished && c.picked)))) {
     fail('[自動送信] 選んだ結果が届かない');
   } else {
     const done = collected.filter((c) => c.finished).pop();
-    if (done.picked.name !== chosen) fail(`[自動送信] 選んだ品がずれている: ${done.picked.name} ≠ ${chosen}`);
-    console.log(`  えらんだあとに届いた内容: 「${done.picked.name}」 / キーワード ${done.keywords.slice(0, 3).join('、')}`);
+    if (!done.picked.name.startsWith(chosen)) {
+      fail(`[自動送信] 選んだ品がずれている: ${done.picked.name} は ${chosen} で始まらない`);
+    }
+    if (refineSteps.length && !done.picked.name.includes(' → ')) {
+      fail('[自動送信] 具体的な品が届いていない');
+    }
+    if (done.refinements.length !== refineSteps.length) {
+      fail(`[自動送信] 深掘りの答えの数が合わない: ${done.refinements.length} ≠ ${refineSteps.length}`);
+    }
+    if (done.answers.length !== done.answeredCount + refineSteps.length) {
+      fail('[自動送信] 回答一覧に深掘りぶんが入っていない');
+    }
+    console.log(`  えらんだあとに届いた内容: 「${done.picked.name}」`);
+  }
+
+  /* 深掘りの途中経過も、その場で届いているか */
+  if (refineSteps.length && !collected.some((c) => c.refinements && c.refinements.length === 1)) {
+    fail('[自動送信] 深掘りの1問目が、その場で届いていない');
   }
 
   /* 手で送るボタンは出ていないはず */
@@ -232,6 +281,94 @@ for (const [name, prefs] of Object.entries(PERSONAS)) {
   configOverride = null;
 }
 
+/* 迷った跡が残るか（もどる・見送る・選びなおす） */
+{
+  configOverride =
+    `const REPORT_ENDPOINT = '${base}collect';\nconst REPORT_MODE = 'fetch';\n`;
+  const before = collected.length;
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  page.on('pageerror', (e) => fail(`[迷った跡] JSエラー: ${e.message}`));
+
+  await page.goto(base);
+  await page.click('#start-button');
+
+  /* 1問答えて、いったんもどって、ちがう答えを選びなおす */
+  const firstQuestion = await page.textContent('#question-text');
+  const firstLabels = await page.locator('#choices .choice-label').allTextContents();
+  await page.locator('#choices .choice').first().click();
+  await page.click('#back-button');
+  await page.locator('#choices .choice').nth(1).click();
+
+  while (await page.locator('[data-screen="quiz"]').isVisible()) {
+    await page.locator('#choices .choice').first().click();
+  }
+
+  /* 最初の3件は見送って、次の3件から選ぶ */
+  const skipped = await page.locator('#result-list .gift-name').allTextContents();
+  await page.click('#more-button');
+  const second = await page.locator('#result-list .gift-name').allTextContents();
+  await page.locator('#result-list .gift-card').first().click();
+
+  /* 深掘りでも一度もどる。深掘りが1問で終わる品なら「選びなおす」で戻る */
+  const refineFirst = await page.locator('#refine-choices .choice-label').allTextContents();
+  await page.locator('#refine-choices .choice').first().click();
+  let wentBack;
+  if (await page.locator('[data-screen="refine"]').isVisible()) {
+    await page.click('#refine-back');
+    wentBack = '深掘りをもどった';
+  } else {
+    await page.click('#send-back-button');
+    wentBack = '選びなおした';
+  }
+  await answerRefinements(page, 1);
+
+  const trail = await page.evaluate(() => journalLines(state.journal));
+  const has = (word) => trail.some((line) => line.includes(word));
+
+  check: {
+    if (!has('はじめた')) fail('[迷った跡] 開始が記録されていない');
+    if (!has('もどった')) fail('[迷った跡] もどったことが記録されていない');
+    if (!has(firstLabels[0])) fail('[迷った跡] 取り消した答えが残っていない');
+    if (!has('ほかの候補を見た')) fail('[迷った跡] 候補を見送ったことが記録されていない');
+    if (!has(skipped[0])) fail(`[迷った跡] 見送った候補「${skipped[0]}」が残っていない`);
+    if (!has('えらんだ')) fail('[迷った跡] 選んだことが記録されていない');
+    if (!has(second[0])) fail('[迷った跡] 選んだ候補が残っていない');
+    if (!has(wentBack)) fail(`[迷った跡] 「${wentBack}」が記録されていない`);
+    if (!has(refineFirst[0])) fail('[迷った跡] 深掘りで最初に選んだ答えが残っていない');
+    if (!has('決まった')) fail('[迷った跡] 決まったことが記録されていない');
+  }
+  console.log(`\n=== 迷った跡（${trail.length}件） ===`);
+  trail.forEach((line) => console.log('  ' + line));
+
+  /* 息子側でも読めるか */
+  const url = await page.evaluate(() => buildResultUrl());
+  const received = await context.newPage();
+  received.on('pageerror', (e) => fail(`[迷った跡] 受け取り画面のJSエラー: ${e.message}`));
+  await received.goto(url);
+  const rows = await received.locator('#received-journal .trail-detail').allTextContents();
+  const whats = await received.locator('#received-journal .trail-what').allTextContents();
+  if (rows.length !== trail.length) {
+    fail(`[迷った跡] 息子に届く件数が合わない: ${rows.length} ≠ ${trail.length}`);
+  }
+  if (!whats.includes('もどった') || !whats.includes('ほかの候補を見た')) {
+    fail('[迷った跡] 息子側にもどった跡が出ていない');
+  }
+  if (!rows.some((row) => row.includes(skipped[0]))) {
+    fail('[迷った跡] 息子側に見送った候補が出ていない');
+  }
+  console.log(`  → 息子側にも${rows.length}件そのまま表示されました`);
+
+  /* 自動送信にも乗っているか */
+  if (!(await until(() => collected.slice(before).some((c) =>
+    Array.isArray(c.journal) && c.journal.some((l) => l.includes('ほかの候補を見た')))))) {
+    fail('[迷った跡] 自動送信に迷った跡が乗っていない');
+  }
+
+  await context.close();
+  configOverride = null;
+}
+
 /* 送信先が未設定なら、手で送るボタンに戻るか */
 {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -243,6 +380,7 @@ for (const [name, prefs] of Object.entries(PERSONAS)) {
     await page.locator('#choices .choice').first().click();
   }
   await page.locator('#result-list .gift-card').first().click();
+  await answerRefinements(page);
   if (!(await page.locator('#manual-send').isVisible())) fail('[手動送信] 手で送るボタンが出ていない');
   if (await page.locator('#auto-done').isVisible()) fail('[手動送信] 届いた案内が出てしまっている');
   await context.close();
