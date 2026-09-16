@@ -26,6 +26,13 @@
  *   Secrets（REPORT_ENDPOINT / REPORT_TOKEN）を差し替えてください。
  */
 
+/*
+ * 版。コードを直したらここも上げる。
+ * デプロイのURLをブラウザで開くと、いま動いている版と列の構成が見られます。
+ * 直したのに古い版が表示されるときは、デプロイが更新されていません（README参照）。
+ */
+const VERSION = '2026-09-16 迷った跡';
+
 /* ===== 設定 ===== */
 
 /** 書き込むシートの名前。無ければ自動で作ります */
@@ -79,9 +86,20 @@ function doPost(e) {
   return reply();
 }
 
-/** ブラウザでURLをそのまま開いたときの動作確認用 */
+/**
+ * ブラウザでURLをそのまま開いたときに出るもの。
+ * いま動いている版と列の構成が分かるので、デプロイの確認に使えます。
+ */
 function doGet() {
-  return ContentService.createTextOutput('ほしいものクイズの受け口は動いています');
+  return ContentService.createTextOutput(
+    'ほしいものクイズの受け口は動いています' + NEWLINE +
+    NEWLINE +
+    '版: ' + VERSION + NEWLINE +
+    '列: ' + HEADERS.join(' / ') + NEWLINE +
+    NEWLINE +
+    'ここに「迷った跡」が出ていなければ、デプロイが更新されていません。' + NEWLINE +
+    'デプロイ → デプロイを管理 → 鉛筆マーク → バージョン「新バージョン」→ デプロイ'
+  );
 }
 
 function reply() {
