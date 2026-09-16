@@ -389,7 +389,7 @@ function renderResult() {
         <p class="gift-note"></p>
         <p class="gift-reason"></p>
       </div>
-      <div class="gift-pick">これにする →</div>`;
+      <div class="gift-pick">これを見てみる →</div>`;
     card.querySelector('.gift-name').textContent = item.gift.name;
     card.querySelector('.gift-note').textContent = item.gift.note;
     const reasons = reasonsFor(item.gift, scores);
