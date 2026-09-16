@@ -24,7 +24,7 @@ const check = (label, ok) => {
 };
 
 /** Google のサービスを差し替えて、スクリプトを1つ動かす */
-function load({ token = '', email = '' } = {}) {
+function load({ token = '', email = '', header = null } = {}) {
   const source = SOURCE
     .replace("const SHARED_TOKEN = '';", `const SHARED_TOKEN = ${JSON.stringify(token)};`)
     .replace("const NOTIFY_EMAIL = '';", `const NOTIFY_EMAIL = ${JSON.stringify(email)};`);
@@ -34,27 +34,46 @@ function load({ token = '', email = '' } = {}) {
   const cache = new Map();
   const props = new Map();
 
-  const sheet = {
-    getLastRow: () => rows.length,
-    appendRow: (row) => { rows.push(row.slice()); },
+  /* シート1枚ぶんのふるまい。行は rows と同じ配列を共有する */
+  const makeSheet = (name, store) => ({
+    name,
+    rows: store,
+    getName: () => name,
+    setName: (next) => { renames.push([name, next]); name = next; },
+    getLastRow: () => store.length,
+    getLastColumn: () => store.reduce((max, r) => Math.max(max, r.length), 0),
+    appendRow: (row) => { store.push(row.slice()); },
     setFrozenRows: () => {},
     getRange: (row, col, numRows = 1, numCols = 1) => ({
-      getValue: () => (rows[row - 1] || [])[col - 1],
-      setValue: (value) => { (rows[row - 1] || [])[col - 1] = value; },
+      getValue: () => (store[row - 1] || [])[col - 1],
+      setValue: (value) => { (store[row - 1] || [])[col - 1] = value; },
       getValues: () => {
         const out = [];
-        for (let i = 0; i < numRows; i++) out.push([(rows[row - 1 + i] || [])[col - 1]]);
+        for (let i = 0; i < numRows; i++) {
+          const source = store[row - 1 + i] || [];
+          const line = [];
+          for (let j = 0; j < numCols; j++) line.push(source[col - 1 + j]);
+          out.push(line);
+        }
         return out;
       },
       setValues: (values) => {
-        for (let j = 0; j < numCols; j++) rows[row - 1][col - 1 + j] = values[0][j];
+        for (let j = 0; j < numCols; j++) store[row - 1][col - 1 + j] = values[0][j];
       }
     })
-  };
+  });
+
+  const renames = [];
+  let sheet = makeSheet('answers', rows);
 
   const context = {
     console: { error: () => {} },
-    SpreadsheetApp: { getActiveSpreadsheet: () => ({ getSheetByName: () => sheet, insertSheet: () => sheet }) },
+    SpreadsheetApp: {
+      getActiveSpreadsheet: () => ({
+        getSheetByName: () => sheet,
+        insertSheet: (name) => { rows.length = 0; sheet = makeSheet(name, rows); return sheet; }
+      })
+    },
     CacheService: {
       getScriptCache: () => ({
         get: (k) => (cache.has(k) ? cache.get(k) : null),
@@ -69,7 +88,7 @@ function load({ token = '', email = '' } = {}) {
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
     MailApp: { sendEmail: (to, subject, body) => mails.push({ to, subject, body }) },
-    Utilities: { formatDate: () => '2026-09-15' },
+    Utilities: { formatDate: (d, tz, fmt) => (fmt.includes('HH') ? '20260916-013000' : '2026-09-16') },
     ContentService: { createTextOutput: (text) => ({ text }) }
   };
 
@@ -81,12 +100,17 @@ function load({ token = '', email = '' } = {}) {
   );
 
   /* ヘッダー行を先に置いておく（本物のシートと同じ状態にする） */
-  rows.push(context.__headers.slice());
+  rows.push(header ? header.slice() : context.__headers.slice());
 
   const post = (body) =>
     context.__doPost({ postData: { contents: typeof body === 'string' ? body : JSON.stringify(body) } });
 
-  return { post, rows, mails, dataRows: () => rows.slice(1) };
+  return {
+    post, rows, mails, renames,
+    headers: () => context.__headers.slice(),
+    header: () => rows[0],
+    dataRows: () => rows.slice(1)
+  };
 }
 
 const validPayload = (over = {}) => ({
@@ -96,6 +120,7 @@ const validPayload = (over = {}) => ({
   message: '',
   keywords: ['甘いもの好き'],
   answers: [{ question: '甘いものは好きですか？', answer: '大好き' }],
+  journal: ['0秒 はじめた', '12秒 答えた：甘いもの'],
   ranking: [{ name: 'お取り寄せスイーツの詰め合わせ' }],
   picked: null,
   ...over
@@ -154,6 +179,47 @@ console.log('\n=== 受け口の検査 ===');
   check('列に「目安」が無い', !app.rows[0].includes('目安'));
   check('金額を送りつけられてもシートに入らない',
     row.every((cell) => typeof cell !== 'string' || !cell.includes('5,000円')));
+}
+
+/* 迷った跡 */
+{
+  const app = load();
+  app.post(validPayload({
+    journal: ['0秒 はじめた', '30秒 もどった：甘いもの を取り消した', '48秒 ほかの候補を見た：家電、マッサージ機 を見送った']
+  }));
+  const trail = app.dataRows()[0][11];
+  check('迷った跡が専用の列に入る', typeof trail === 'string' && trail.includes('もどった'));
+  check('見送った候補も残る', trail.includes('見送った'));
+  check('できごとが1行ずつ並ぶ', trail.split(String.fromCharCode(10)).length === 3);
+}
+
+/* 迷った跡の量を制限する（本文の長さの上限には収まる範囲で） */
+{
+  const app = load();
+  app.post(validPayload({
+    journal: Array.from({ length: 200 }, (_, i) => `${i}秒 答えた：えらんだ`)
+  }));
+  check('迷った跡は80件までに切られる',
+    app.dataRows()[0][11].split(String.fromCharCode(10)).length === 80);
+}
+{
+  const app = load();
+  app.post(validPayload({
+    journal: Array.from({ length: 10 }, () => 'ぜ'.repeat(300))
+  }));
+  const trail = app.dataRows()[0][11].split(String.fromCharCode(10));
+  check('1件あたりの長さも切られる', trail.every((line) => line.length <= 121));
+}
+
+/* 列の構成が変わったら、古いシートを残して作り直す */
+{
+  const app = load({ header: ['更新日時', 'セッション', '回答数', '選んだもの'] });
+  app.post(validPayload());
+  check('古い列構成のシートは名前を変えて退避される',
+    app.renames.length === 1 && app.renames[0][1].startsWith('answers_old_'));
+  check('新しい列構成で作り直される',
+    JSON.stringify(app.header()) === JSON.stringify(app.headers()));
+  check('作り直したあと、ちゃんと書き込める', app.dataRows().length === 1);
 }
 
 /* 合言葉 */

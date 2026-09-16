@@ -281,6 +281,94 @@ for (const [name, prefs] of Object.entries(PERSONAS)) {
   configOverride = null;
 }
 
+/* 迷った跡が残るか（もどる・見送る・選びなおす） */
+{
+  configOverride =
+    `const REPORT_ENDPOINT = '${base}collect';\nconst REPORT_MODE = 'fetch';\n`;
+  const before = collected.length;
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  page.on('pageerror', (e) => fail(`[迷った跡] JSエラー: ${e.message}`));
+
+  await page.goto(base);
+  await page.click('#start-button');
+
+  /* 1問答えて、いったんもどって、ちがう答えを選びなおす */
+  const firstQuestion = await page.textContent('#question-text');
+  const firstLabels = await page.locator('#choices .choice-label').allTextContents();
+  await page.locator('#choices .choice').first().click();
+  await page.click('#back-button');
+  await page.locator('#choices .choice').nth(1).click();
+
+  while (await page.locator('[data-screen="quiz"]').isVisible()) {
+    await page.locator('#choices .choice').first().click();
+  }
+
+  /* 最初の3件は見送って、次の3件から選ぶ */
+  const skipped = await page.locator('#result-list .gift-name').allTextContents();
+  await page.click('#more-button');
+  const second = await page.locator('#result-list .gift-name').allTextContents();
+  await page.locator('#result-list .gift-card').first().click();
+
+  /* 深掘りでも一度もどる。深掘りが1問で終わる品なら「選びなおす」で戻る */
+  const refineFirst = await page.locator('#refine-choices .choice-label').allTextContents();
+  await page.locator('#refine-choices .choice').first().click();
+  let wentBack;
+  if (await page.locator('[data-screen="refine"]').isVisible()) {
+    await page.click('#refine-back');
+    wentBack = '深掘りをもどった';
+  } else {
+    await page.click('#send-back-button');
+    wentBack = '選びなおした';
+  }
+  await answerRefinements(page, 1);
+
+  const trail = await page.evaluate(() => journalLines(state.journal));
+  const has = (word) => trail.some((line) => line.includes(word));
+
+  check: {
+    if (!has('はじめた')) fail('[迷った跡] 開始が記録されていない');
+    if (!has('もどった')) fail('[迷った跡] もどったことが記録されていない');
+    if (!has(firstLabels[0])) fail('[迷った跡] 取り消した答えが残っていない');
+    if (!has('ほかの候補を見た')) fail('[迷った跡] 候補を見送ったことが記録されていない');
+    if (!has(skipped[0])) fail(`[迷った跡] 見送った候補「${skipped[0]}」が残っていない`);
+    if (!has('えらんだ')) fail('[迷った跡] 選んだことが記録されていない');
+    if (!has(second[0])) fail('[迷った跡] 選んだ候補が残っていない');
+    if (!has(wentBack)) fail(`[迷った跡] 「${wentBack}」が記録されていない`);
+    if (!has(refineFirst[0])) fail('[迷った跡] 深掘りで最初に選んだ答えが残っていない');
+    if (!has('決まった')) fail('[迷った跡] 決まったことが記録されていない');
+  }
+  console.log(`\n=== 迷った跡（${trail.length}件） ===`);
+  trail.forEach((line) => console.log('  ' + line));
+
+  /* 息子側でも読めるか */
+  const url = await page.evaluate(() => buildResultUrl());
+  const received = await context.newPage();
+  received.on('pageerror', (e) => fail(`[迷った跡] 受け取り画面のJSエラー: ${e.message}`));
+  await received.goto(url);
+  const rows = await received.locator('#received-journal .trail-detail').allTextContents();
+  const whats = await received.locator('#received-journal .trail-what').allTextContents();
+  if (rows.length !== trail.length) {
+    fail(`[迷った跡] 息子に届く件数が合わない: ${rows.length} ≠ ${trail.length}`);
+  }
+  if (!whats.includes('もどった') || !whats.includes('ほかの候補を見た')) {
+    fail('[迷った跡] 息子側にもどった跡が出ていない');
+  }
+  if (!rows.some((row) => row.includes(skipped[0]))) {
+    fail('[迷った跡] 息子側に見送った候補が出ていない');
+  }
+  console.log(`  → 息子側にも${rows.length}件そのまま表示されました`);
+
+  /* 自動送信にも乗っているか */
+  if (!(await until(() => collected.slice(before).some((c) =>
+    Array.isArray(c.journal) && c.journal.some((l) => l.includes('ほかの候補を見た')))))) {
+    fail('[迷った跡] 自動送信に迷った跡が乗っていない');
+  }
+
+  await context.close();
+  configOverride = null;
+}
+
 /* 送信先が未設定なら、手で送るボタンに戻るか */
 {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });

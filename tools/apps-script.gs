@@ -17,6 +17,10 @@
  *     - メールは1日の上限を決め、本文も切り詰める
  *     - 何を弾いたかは返さない（探りに情報を与えない）
  *
+ * ■ 列の構成が変わったとき
+ *   古いシートは answers_old_日時 という名前に変えて残し、新しいシートを
+ *   自動で作り直します。手で直す必要はありません。
+ *
  * ■ 万一おかしなデータが入ったら
  *   デプロイを削除すればURLは即座に死にます。作り直して、GitHub の
  *   Secrets（REPORT_ENDPOINT / REPORT_TOKEN）を差し替えてください。
@@ -38,7 +42,8 @@ const NOTIFY_ONLY_WHEN_FINISHED = true;
 
 /* ===== 上限 ===== */
 
-const MAX_BODY_CHARS = 8000;          // 受け取る本文の長さ（文字数）
+const MAX_BODY_CHARS = 16000;         // 受け取る本文の長さ（文字数）
+const MAX_JOURNAL = 80;               // 迷った跡として受け取るできごとの数
 const MAX_SESSIONS = 300;             // 作れる行数（これを超えたら新規は断る）
 const MAX_WRITES_PER_SESSION = 60;    // 同じ回答者からの書き込み（15分あたり）
 const MAX_WRITES_PER_HOUR = 600;      // 全体の書き込み（1時間あたり）
@@ -50,7 +55,7 @@ const NEWLINE = String.fromCharCode(10);
 const HEADERS = [
   '更新日時', 'セッション', '回答数', '選び終わった',
   '選んだもの', 'ひとこと', 'キーワード',
-  '1位', '2位', '3位', '回答の全部', '通知済み'
+  '1位', '2位', '3位', '回答の全部', '迷った跡', '通知済み'
 ];
 
 /* ===== 受け口 ===== */
@@ -154,6 +159,7 @@ function clean(body) {
         answer: str(a && a.answer, 120)
       };
     }),
+    journal: list(body.journal, MAX_JOURNAL, function (line) { return str(line, 120); }),
     ranking: list(body.ranking, 5, function (r) {
       return { name: str(r && r.name, 80) };
     }),
@@ -188,15 +194,35 @@ function write(data) {
   }
 }
 
+/*
+ * 列の構成が変わったときは、古いシートを名前を変えて残したうえで作り直す。
+ * 手で直さなくて済むようにするため。古いデータは消さない。
+ */
 function getSheet() {
   const book = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = book.getSheetByName(SHEET_NAME);
+
+  if (sheet && !headerMatches(sheet)) {
+    const stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd-HHmmss');
+    sheet.setName(SHEET_NAME + '_old_' + stamp);
+    sheet = null;
+  }
+
   if (!sheet) {
     sheet = book.insertSheet(SHEET_NAME);
     sheet.appendRow(HEADERS);
     sheet.setFrozenRows(1);
   }
   return sheet;
+}
+
+function headerMatches(sheet) {
+  if (sheet.getLastRow() < 1) return false;
+  const header = sheet.getRange(1, 1, 1, HEADERS.length).getValues()[0];
+  for (let i = 0; i < HEADERS.length; i++) {
+    if (header[i] !== HEADERS[i]) return false;
+  }
+  return sheet.getLastColumn() === HEADERS.length;
 }
 
 function findRow(sheet, sessionId) {
@@ -225,7 +251,8 @@ function buildRow(data) {
     ranking[0] ? ranking[0].name : '',
     ranking[1] ? ranking[1].name : '',
     ranking[2] ? ranking[2].name : '',
-    answers
+    answers,
+    data.journal.join(NEWLINE)
   ];
 }
 
@@ -253,10 +280,14 @@ function notify(data) {
     lines.push((i + 1) + '. ' + a.question);
     lines.push('   / ' + a.answer);
   });
+  if (data.journal.length) {
+    lines.push('', '--- 迷った跡 ---');
+    data.journal.forEach(function (line) { lines.push(line); });
+  }
   lines.push('', '※ 本文はウェブから送られてきた内容です。リンクは開かないでください。');
 
   MailApp.sendEmail(NOTIFY_EMAIL, 'ほしいものクイズの回答が届きました',
-    lines.join(NEWLINE).slice(0, 4000));
+    lines.join(NEWLINE).slice(0, 8000));
   props.setProperty(key, String(sent + 1));
   return true;
 }

@@ -12,6 +12,8 @@ const MIN_QUESTIONS = 9;
 const MAX_QUESTIONS = 13;
 const DECIDED_MARGIN = 0.22;   // 1位と2位がこれだけ離れたら打ち切ってよい
 const STORAGE_KEY = 'gift-quiz-progress-v1';
+const MAX_JOURNAL = 60;        // 記録するできごとの数の上限
+const MAX_JOURNAL_DETAIL = 90; // 1件あたりの文字数の上限
 
 const state = {
   sessionId: '',      // 今回の回答を見分けるための番号
@@ -23,8 +25,67 @@ const state = {
   finalItem: null,    // 深掘りで決まった具体的な品 { name, note }
   shownTop: [],       // 結果画面に出した候補の id
   offset: 0,          // 「ほかの候補も見る」で何件ずらしたか
-  message: ''
+  message: '',
+  startedMs: 0,       // 始めた時刻（経過時間の計算用）
+  journal: [],        // 迷った跡 [{ at, type, detail }]
+  messageLogged: false
 };
+
+/*
+ * できごとの記録。
+ *
+ * 「何を選んだか」より「何を見送ったか・どこで迷ったか」のほうが、
+ * 贈る側にとっては参考になることがある。押した順にそのまま残す。
+ */
+const JOURNAL_LABELS = {
+  start: 'はじめた',
+  answer: '答えた',
+  back: 'もどった',
+  shown: '候補が出た',
+  more: 'ほかの候補を見た',
+  pick: 'えらんだ',
+  refine: '細かく答えた',
+  refine_back: '深掘りをもどった',
+  redo: '選びなおした',
+  retry: '最初からやりなおした',
+  message: 'ひとことを書いた',
+  finish: '決まった',
+  truncated: 'これ以降は記録しきれませんでした'
+};
+
+function logEvent(type, detail) {
+  if (state.journal.length > MAX_JOURNAL) return;
+  if (state.journal.length === MAX_JOURNAL) {
+    state.journal.push({ at: elapsedSeconds(), type: 'truncated', detail: '' });
+    return;
+  }
+  const text = String(detail || '');
+  state.journal.push({
+    at: elapsedSeconds(),
+    type,
+    detail: text.length > MAX_JOURNAL_DETAIL ? text.slice(0, MAX_JOURNAL_DETAIL) + '…' : text
+  });
+}
+
+function elapsedSeconds() {
+  return state.startedMs ? Math.round((Date.now() - state.startedMs) / 1000) : 0;
+}
+
+/* 「3分12秒」のように読める形にする */
+function formatElapsed(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m ? `${m}分${s}秒` : `${s}秒`;
+}
+
+function journalLines(journal) {
+  return journal.map((entry) => {
+    const label = JOURNAL_LABELS[entry.type] || entry.type;
+    return entry.detail
+      ? `${formatElapsed(entry.at)} ${label}：${entry.detail}`
+      : `${formatElapsed(entry.at)} ${label}`;
+  });
+}
 
 function newSessionId() {
   if (crypto.randomUUID) return crypto.randomUUID();
@@ -150,6 +211,8 @@ function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       sessionId: state.sessionId,
       startedAt: state.startedAt,
+      startedMs: state.startedMs,
+      journal: state.journal,
       answers: state.answers
     }));
   } catch (e) { /* プライベートブラウズなどでは黙って諦める */ }
@@ -213,6 +276,7 @@ function snapshot() {
         }
       : null,
     refinements: state.refinePath,
+    journal: journalLines(state.journal),
     message: state.message.trim()
   };
 }
@@ -270,6 +334,7 @@ function renderQuestion() {
     button.querySelector('.choice-label').textContent = choice.label;
     button.addEventListener('click', () => {
       state.answers.push({ qid: question.id, ci: index });
+      logEvent('answer', `${question.text} → ${choice.label}`);
       save();
       report();
       renderQuestion();
@@ -282,7 +347,11 @@ function renderQuestion() {
 }
 
 function goBack() {
-  state.answers.pop();
+  const undone = state.answers.pop();
+  if (undone) {
+    const question = questionById(undone.qid);
+    logEvent('back', `${question.choices[undone.ci].label} を取り消した`);
+  }
   save();
   report();
   renderQuestion();
@@ -331,17 +400,27 @@ function renderResult() {
       state.refineStack = [];
       state.refinePath = [];
       state.finalItem = null;
+      logEvent('pick', item.gift.name);
       startRefine();
     });
     list.appendChild(card);
   });
 
   $('#more-button').hidden = state.offset + 3 >= ranking.length;
+
+  /* 同じ顔ぶれを出しなおしただけのときは記録しない */
+  const shownNames = top.map((item) => item.gift.name).join('、');
+  const lastShown = [...state.journal].reverse().find((e) => e.type === 'shown');
+  if (!lastShown || !lastShown.detail.startsWith(shownNames.slice(0, MAX_JOURNAL_DETAIL))) {
+    logEvent('shown', shownNames);
+  }
+
   report();
   showScreen('result');
 }
 
 function showMore() {
+  logEvent('more', `${state.shownTop.map((id) => giftById(id).name).join('、')} を見送った`);
   state.offset += 3;
   renderResult();
 }
@@ -355,6 +434,7 @@ function showMore() {
 function startRefine() {
   const tree = REFINEMENTS[state.finalPick];
   if (!tree) {
+    logEvent('finish', giftById(state.finalPick).name);
     report();
     renderSend();
     return;
@@ -381,6 +461,7 @@ function renderRefine() {
     button.querySelector('.choice-label').textContent = choice.label;
     button.addEventListener('click', () => {
       state.refinePath.push({ question: node.question, answer: choice.label });
+      logEvent('refine', `${node.question} → ${choice.label}`);
       if (choice.next) {
         state.refineStack.push(choice.next);
         renderRefine();
@@ -388,6 +469,7 @@ function renderRefine() {
         return;
       }
       state.finalItem = { name: choice.name, note: choice.note };
+      logEvent('finish', choice.name);
       report();
       renderSend();
     });
@@ -400,12 +482,14 @@ function renderRefine() {
 }
 
 function refineBack() {
-  state.refinePath.pop();
+  const undone = state.refinePath.pop();
   state.refineStack.pop();
   if (state.refineStack.length === 0) {
+    logEvent('back', '候補の一覧にもどった');
     renderResult();
     return;
   }
+  logEvent('refine_back', undone ? `${undone.answer} を取り消した` : '');
   renderRefine();
 }
 
@@ -433,6 +517,7 @@ function buildResultUrl() {
     t: state.shownTop,
     d: state.finalItem,
     rf: state.refinePath.map((step) => [step.question, step.answer]),
+    j: state.journal.map((entry) => [entry.at, entry.type, entry.detail]),
     m: state.message.slice(0, 400)
   };
   const base = location.origin + location.pathname;
@@ -536,6 +621,23 @@ function renderReceived(payload) {
     if (typeof question === 'string' && typeof answer === 'string') addRow(question, answer);
   });
 
+  const journal = (payload.j || [])
+    .filter((entry) => Array.isArray(entry) && entry.length === 3)
+    .map(([at, type, detail]) => ({ at: Number(at) || 0, type: String(type), detail: String(detail) }));
+
+  $('#received-journal-wrap').hidden = journal.length === 0;
+  const journalList = $('#received-journal');
+  journalList.innerHTML = '';
+  journal.forEach((entry) => {
+    const li = document.createElement('li');
+    li.className = `trail trail--${entry.type}`;
+    li.innerHTML = '<span class="trail-time"></span><span class="trail-what"></span><span class="trail-detail"></span>';
+    li.querySelector('.trail-time').textContent = formatElapsed(entry.at);
+    li.querySelector('.trail-what').textContent = JOURNAL_LABELS[entry.type] || entry.type;
+    li.querySelector('.trail-detail').textContent = entry.detail;
+    journalList.appendChild(li);
+  });
+
   const topTags = Object.keys(scores)
     .filter((tag) => scores[tag] > 0 && TAG_LABELS[tag])
     .sort((a, b) => tagWeight(scores, b) - tagWeight(scores, a))
@@ -558,6 +660,10 @@ function start(fresh) {
     state.answers = [];
     state.sessionId = newSessionId();
     state.startedAt = new Date().toISOString();
+    state.startedMs = Date.now();
+    state.journal = [];
+    state.messageLogged = false;
+    logEvent('start', '');
     clearSaved();
     save();
   }
@@ -576,10 +682,15 @@ function init() {
   $('#resume-button').addEventListener('click', () => start(false));
   $('#back-button').addEventListener('click', goBack);
   $('#more-button').addEventListener('click', showMore);
-  $('#retry-button').addEventListener('click', () => start(true));
+  $('#retry-button').addEventListener('click', () => {
+    logEvent('retry', '');
+    start(true);
+  });
   $('#send-back-button').addEventListener('click', () => {
+    logEvent('redo', '');
     if (REFINEMENTS[state.finalPick]) {
       state.refinePath = [];
+      state.finalItem = null;
       startRefine();
     } else {
       renderResult();
@@ -589,6 +700,10 @@ function init() {
   $('#copy-button').addEventListener('click', copyResult);
   $('#message-input').addEventListener('input', (event) => {
     state.message = event.target.value;
+    if (!state.messageLogged && state.message.trim()) {
+      state.messageLogged = true;
+      logEvent('message', '');
+    }
     refreshShareLinks();
     reportMessageSoon();
   });
@@ -606,6 +721,8 @@ function init() {
   const saved = loadSaved();
   state.sessionId = (saved && saved.sessionId) || newSessionId();
   state.startedAt = (saved && saved.startedAt) || new Date().toISOString();
+  state.startedMs = (saved && saved.startedMs) || Date.now();
+  state.journal = (saved && Array.isArray(saved.journal)) ? saved.journal : [];
   state.answers = saved ? saved.answers : [];
   $('#resume-button').hidden = state.answers.length === 0;
 

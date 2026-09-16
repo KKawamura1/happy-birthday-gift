@@ -40,7 +40,10 @@
       </p>
       <button type="button" id="start-button" class="primary">はじめる</button>
       <button type="button" id="resume-button" class="secondary" hidden>前回のつづきから</button>
-      <p class="fine">途中でやめても大丈夫です。そこまでの答えが届きます。</p>
+      <p class="fine">
+        途中でやめても、もどってやり直しても大丈夫です。<br>
+        押した順に、そのまま息子に届きます。
+      </p>
     </div>
   </section>
 
@@ -147,6 +150,12 @@
     <div>
       <h3>答えの全部</h3>
       <ul class="qa-list" id="received-answers"></ul>
+    </div>
+
+    <div id="received-journal-wrap" hidden>
+      <h3>迷った跡</h3>
+      <p class="fine">押した順に、そのまま残しています。もどったところ、見送った候補も入っています。</p>
+      <ul class="trail-list" id="received-journal"></ul>
     </div>
   </section>
 
